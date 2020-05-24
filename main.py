@@ -93,6 +93,9 @@ if __name__ == "__main__":
             from samplelib import PackedFaceset
             PackedFaceset.unpack( Path(arguments.input_dir) )
 
+        if arguments.filter_faceset:
+            Util.filter_faceset_metadata_folder (input_path=arguments.input_dir)
+
     p = subparsers.add_parser( "util", help="Utilities.")
     p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir", help="Input directory. A directory containing the files you wish to process.")
     p.add_argument('--add-landmarks-debug-images', action="store_true", dest="add_landmarks_debug_images", default=False, help="Add landmarks debug image for aligned faces.")
@@ -101,6 +104,9 @@ if __name__ == "__main__":
     p.add_argument('--restore-faceset-metadata', action="store_true", dest="restore_faceset_metadata", default=False, help="Restore faceset metadata to file. Image filenames must be the same as used with save.")
     p.add_argument('--pack-faceset', action="store_true", dest="pack_faceset", default=False, help="")
     p.add_argument('--unpack-faceset', action="store_true", dest="unpack_faceset", default=False, help="")
+    p.add_argument('--filter-faceset', action="store_true", dest="filter_faceset", default=False, help="Integrate landmarks over time to filter out noise")
+    p.add_argument('--filter-radius', action="store_true", dest="filter_radius", default=1, help="Number of frames before and after current over which to integrate")
+    p.add_argument('--dst-dir', action="store_true", dest="dst_dir", default=False, help="Original dst dir")
 
     p.set_defaults (func=process_util)
 
