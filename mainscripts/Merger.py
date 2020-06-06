@@ -1,4 +1,5 @@
 import math
+import re
 import traceback
 from pathlib import Path
 
@@ -24,7 +25,10 @@ def main (model_class_name=None,
           output_mask_path=None,
           aligned_path=None,
           force_gpu_idxs=None,
-          cpu_only=None):
+          cpu_only=None,
+          frame_range=None,
+          cfg_load_path=None,
+          cfg_save_path=None):
     io.log_info ("Running merger.\r\n")
 
     try:
@@ -47,6 +51,7 @@ def main (model_class_name=None,
         model = models.import_model(model_class_name)(is_training=False,
                                                       saved_models_path=saved_models_path,
                                                       force_gpu_idxs=force_gpu_idxs,
+                                                      force_model_name=force_model_name,
                                                       cpu_only=cpu_only)
 
         predictor_func, predictor_input_shape, cfg = model.get_MergerConfig()
@@ -66,10 +71,16 @@ def main (model_class_name=None,
                                                     place_model_on_cpu=True,
                                                     run_on_cpu=run_on_cpu)
 
-        is_interactive = io.input_bool ("Use interactive merger?", True) if not io.is_colab() else False
+        is_interactive = io.input_bool ("Use interactive merger?", True) if not io.is_colab() and not cfg_load_path else False
 
         if not is_interactive:
-            cfg.ask_settings()
+            if cfg_load_path:
+                cfg.load(cfg_load_path)
+            else:
+                cfg.ask_settings()
+                if cfg_save_path:
+                    cfg.save(cfg_save_path)
+                    return True
 
         input_path_image_paths = pathex.get_image_paths(input_path)
 
@@ -146,6 +157,7 @@ def main (model_class_name=None,
                                               )
                        for p in input_path_image_paths ]
 
+
             if multiple_faces_detected:
                 io.log_info ("Warning: multiple faces detected. Motion blur will not be used.")
                 io.log_info ("")
@@ -181,26 +193,52 @@ def main (model_class_name=None,
                     fi.motion_deg = -math.atan2(motion_vector[1],motion_vector[0])*180 / math.pi
 
 
+        if frame_range:
+            process_framenums = []
+            for group in frame_range.split(','): #process groups of franges
+                frange = group.split('-')
+                frame_pad = len(frange[0])
+                if len(frange) == 1:
+                    process_framenums += frange
+                elif len(frange) == 2:
+                    process_framenums += [str(i).zfill(frame_pad) for i in range(int(frange[0]), int(frange[1])+1)]
+                else:
+                    io.log_err("Frame range format not supported.")
+
+            process_frames = []
+            for frame in frames:
+                image_path = str(frame.frame_info.filepath)
+                image_path_framenum = re.findall(r'(?:^|\D)(\d{'+str(frame_pad)+r'})\D', image_path)
+                if not image_path_framenum:
+                    io.log_err(f"{frame_pad} padded frame number not found in {image_path}")
+                else:
+                    if image_path_framenum[-1] in process_framenums:
+                        process_frames.append(frame)
+            frames = process_frames
+
         if len(frames) == 0:
             io.log_info ("No frames to merge in input_dir.")
         else:
             if False:
                 pass
             else:
-                InteractiveMergerSubprocessor (
-                            is_interactive         = is_interactive,
-                            merger_session_filepath = model.get_strpath_storage_for_file('merger_session.dat'),
-                            predictor_func         = predictor_func,
-                            predictor_input_shape  = predictor_input_shape,
-                            face_enhancer_func     = face_enhancer_func,
-                            xseg_256_extract_func = xseg_256_extract_func,
-                            merger_config          = cfg,
-                            frames                 = frames,
-                            frames_root_path       = input_path,
-                            output_path            = output_path,
-                            output_mask_path       = output_mask_path,
-                            model_iter             = model.get_iter()
-                        ).run()
+                pass
+            InteractiveMergerSubprocessor (
+                is_interactive         = is_interactive,
+                merger_session_filepath = model.get_strpath_storage_for_file('merger_session.dat'),
+                predictor_func         = predictor_func,
+                predictor_input_shape  = predictor_input_shape,
+                face_enhancer_func     = face_enhancer_func,
+                xseg_256_extract_func = xseg_256_extract_func,
+                merger_config          = cfg,
+                cfg_save_path          = cfg_save_path,
+                batch_mode             = True if frame_range is not None else False,
+                frames                 = frames,
+                frames_root_path       = input_path,
+                output_path            = output_path,
+                output_mask_path       = output_mask_path,
+                model_iter             = model.get_iter()
+            ).run()
 
         model.finalize()
 

@@ -140,15 +140,17 @@ class InteractiveMergerSubprocessor(Subprocessor):
 
 
     #override
-    def __init__(self, is_interactive, merger_session_filepath, predictor_func, predictor_input_shape, face_enhancer_func, xseg_256_extract_func, merger_config, frames, frames_root_path, output_path, output_mask_path, model_iter):
+    def __init__(self, is_interactive, merger_session_filepath, predictor_func, predictor_input_shape, face_enhancer_func, xseg_256_extract_func, merger_config, cfg_save_path, batch_mode, frames, frames_root_path, output_path, output_mask_path, model_iter):
         if len (frames) == 0:
             raise ValueError ("len (frames) == 0")
 
         super().__init__('Merger', InteractiveMergerSubprocessor.Cli, io_loop_sleep_time=0.001)
 
         self.is_interactive = is_interactive
+        self.batch_mode = batch_mode
         self.merger_session_filepath = Path(merger_session_filepath)
         self.merger_config = merger_config
+        self.cfg_save_path = cfg_save_path
 
         self.predictor_func = predictor_func
         self.predictor_input_shape = predictor_input_shape
@@ -232,12 +234,12 @@ class InteractiveMergerSubprocessor(Subprocessor):
                 session_data = None
 
         if session_data is None:
-            for filename in pathex.get_image_paths(self.output_path): #remove all images in output_path
-                Path(filename).unlink()
+            if not batch_mode:
+                for filename in pathex.get_image_paths(self.output_path): #remove all images in output_path
+                    Path(filename).unlink()
 
-            for filename in pathex.get_image_paths(self.output_mask_path): #remove all images in output_mask_path
-                Path(filename).unlink()
-
+                for filename in pathex.get_image_paths(self.output_mask_path): #remove all images in output_mask_path
+                    Path(filename).unlink()
 
             frames[0].cfg = self.merger_config.copy()
 
@@ -353,6 +355,11 @@ class InteractiveMergerSubprocessor(Subprocessor):
                 'model_iter' : self.model_iter,
             }
             self.merger_session_filepath.write_bytes( pickle.dumps(session_data) )
+
+            if self.cfg_save_path:
+                for k,v in self.frames[self.frames_idxs[0]].cfg.__dict__.items():
+                    print(k,v,type(v))
+                self.frames[self.frames_idxs[0]].cfg.save(self.cfg_save_path)
 
             io.log_info ("Session is saved to " + '/'.join (self.merger_session_filepath.parts[-2:]) )
 
