@@ -22,7 +22,7 @@ p.add_argument('--output-dir', required=True, action=fixPathAction, dest="output
 p.add_argument('--aligned-dir', required=True, action=fixPathAction, dest="aligned_dir", default=None,
                help="Aligned directory. This is where the extracted of dst faces stored.")
 p.add_argument('--deltas-file', required=True, action=fixPathAction, dest="deltas_file", default=None,
-               help="Aligned directory. This is where the extracted of dst faces stored.")
+               help="File containing landmark deltas.")
 p.add_argument('--border', type=int, dest="border", default=0,
                help="Amount of non-warped border around aligned face (in percent) - default 0")
 p.add_argument('--blur', type=int, dest="blur", default=5,
@@ -81,7 +81,7 @@ def generator():
 source_images = []
 for dflimg in generator():
     if dflimg is None or not dflimg.has_data():
-        io.log_err(f"{filepath.name} is not a dfl image file")
+        io.log_err(f"{dflimg.filename} is not a dfl image file")
         continue
 
     source_filename = dflimg.get_source_filename()
