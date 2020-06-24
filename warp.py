@@ -23,10 +23,10 @@ p.add_argument('--aligned-dir', required=True, action=fixPathAction, dest="align
                help="Aligned directory. This is where the extracted of dst faces stored.")
 p.add_argument('--deltas-file', required=True, action=fixPathAction, dest="deltas_file", default=None,
                help="Aligned directory. This is where the extracted of dst faces stored.")
-p.add_argument('--border-size', type=int, dest="border_size", default=20,
-               help="Amount of non-warped border around aligned face (in percent)")
-p.add_argument('--blur', type=int, dest="blur", default=3,
-               help="Size of blur to apply to warp map (in percent of image size)")
+p.add_argument('--border', type=int, dest="border", default=0,
+               help="Amount of non-warped border around aligned face (in percent) - default 0")
+p.add_argument('--blur', type=int, dest="blur", default=5,
+               help="Size of blur to apply to warp map (in percent of image size) - default 5%")
 p.add_argument('--raw', action="store_true", dest="raw", default=False,
                help="Operate on raw predictions (in aligned state)")
 p.add_argument('--save-map', action="store_true", dest="save_map", default=False,
@@ -69,7 +69,7 @@ edges = np.vstack((edge_x,edge_t)).T # top edge
 edges = np.concatenate((edges, np.vstack((edge_x,edge_b)).T)) # bottom edge
 edges = np.concatenate((edges, np.flip(edges))) # left and right edges
 
-border_scale = 1 - args.border_size/10
+border_scale = 1 - args.border/100.0
 borders = LandmarksProcessor.transform_points(edges, np.array([[1,0,-0.5],[0,1,-0.5]]))
 borders = LandmarksProcessor.transform_points(borders, np.array([[border_scale,0,0.5],[0,border_scale,0.5]]))
 
@@ -121,7 +121,7 @@ for dflimg in generator():
         dst = np.concatenate((dst, edges * [w, h]))
 
     grid_y, grid_x = np.mgrid[0:h, 0:w]  # cross outputs for x,y addressing
-    grid_z = griddata(src, dst, (grid_x, grid_y), method='linear')
+    grid_z = griddata(dst, src, (grid_x, grid_y), method='linear')
     k = int(args.blur/100 * w)
     if k % 2 == 0:
         k += 1
