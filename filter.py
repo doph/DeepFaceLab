@@ -1,21 +1,22 @@
 import os
-from pathlib import Path
 import argparse
 
 import numpy as np
 from scipy.interpolate import griddata
-from scipy.signal import convolve2d
+from scipy.signal import gaussian, convolve2d
 
 from core.cv2ex import *
 from core import pathex
 from core.leras import nn
 from DFLIMG import *
-from facelib import FaceType, LandmarksProcessor
+from facelib import FaceType
 from mainscripts.Extractor import ExtractSubprocessor
+
 
 class fixPathAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, os.path.abspath(os.path.expanduser(values)))
+
 
 p = argparse.ArgumentParser()
 p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir",
@@ -25,6 +26,8 @@ p.add_argument('--output-dir', required=True, action=fixPathAction, dest="output
 p.add_argument('--aligned-dir', required=True, action=fixPathAction, dest="aligned_dir", default=None,
                help="Aligned directory. This is where the extracted of dst faces stored.")
 p.add_argument('--radius', type=int, dest="radius", default=1,
+               help="Number of frames before and after current over which to integrate")
+p.add_argument('--sigma', type=int, dest="sigma", default=1,
                help="Number of frames before and after current over which to integrate")
 p.add_argument('--output-debug', action="store_true", dest="debug", default=False,
                help="Output aligned debug images")
@@ -50,24 +53,37 @@ if args.debug:
 else:
     debug_dir = None
 
+
+def fill_missing(mat, mask):
+    grid_y, grid_x = np.mgrid[:mat.shape[0], :mat.shape[1]]
+    mat_filled_lin = griddata((grid_x[mask].ravel(), grid_y[mask].ravel()), mat[mask].ravel(), (grid_x, grid_y),
+                              method='linear')
+    mat_filled_near = griddata((grid_x[mask].ravel(), grid_y[mask].ravel()), mat[mask].ravel(), (grid_x, grid_y),
+                               method='nearest')
+    mat_filled_lin[np.isnan(mat_filled_lin)] = mat_filled_near[np.isnan(mat_filled_lin)]
+    return mat_filled_lin
+
+
 def alignments_generator():
-    for filepath in io.progress_bar_generator(pathex.get_image_paths(aligned_path, return_Path_class=True), "Collecting landmarks"):
+    for filepath in io.progress_bar_generator(pathex.get_image_paths(aligned_path, return_Path_class=True),
+                                              "Collecting landmarks"):
         dflimg = DFLIMG.load(filepath)
         if dflimg is None or not dflimg.has_data():
             io.log_err(f"{dflimg.filename} is not a dfl image file")
             continue
         yield dflimg
 
-#get images from input and aligned dirs
-dst_image_paths = sorted(pathex.get_image_paths(input_path, return_Path_class=True))
-lmrks_dict = {dflimg.get_source_filename():{'rect':      dflimg.get_source_rect(),
-                                            'lmrks':     dflimg.get_source_landmarks(),
-                                            'face_type': dflimg.get_face_type()
-                                            } for dflimg in alignments_generator()}
 
-#vectorize rects and landmarks
-rect_mat = np.zeros((len(dst_image_paths),4))
-lmrks_mat = np.zeros((len(dst_image_paths),68*2))
+# get images from input and aligned dirs
+dst_image_paths = sorted(pathex.get_image_paths(input_path, return_Path_class=True))
+lmrks_dict = {dflimg.get_source_filename(): {'rect': dflimg.get_source_rect(),
+                                             'lmrks': dflimg.get_source_landmarks(),
+                                             'face_type': dflimg.get_face_type()
+                                             } for dflimg in alignments_generator()}
+
+# vectorize rects and landmarks
+rect_mat = np.zeros((len(dst_image_paths), 4))
+lmrks_mat = np.zeros((len(dst_image_paths), 68 * 2))
 aligned_mask = []
 face_type = None
 for i, path in enumerate(dst_image_paths):
@@ -78,23 +94,25 @@ for i, path in enumerate(dst_image_paths):
             face_type = FaceType.fromString(lmrks_dict[path.name]['face_type'])
         aligned_mask.append(i)
 
-#interpolate missing values of landmark matrix
+# interpolate missing values of landmark matrix
 if len(dst_image_paths) > len(lmrks_dict.keys()):
-    map = np.meshgrid[:lmrks_mat.shape(0), :lmrks_mat.shape(1)]
-    rect_mat = griddata(aligned_mask, rect_mat[aligned_mask], map, method='linear')
-    lmrks_mat = griddata(aligned_mask, lmrks_mat[aligned_mask], map, method='linear')
+    rect_mat = fill_missing(rect_mat, aligned_mask)
+    lmrks_mat = fill_missing(lmrks_mat, aligned_mask)
 
-#smooth landmark matrix
+# smooth landmark matrix
 k_width = args.radius * 2 + 1
-kernel = np.array([np.ones(k_width)/k_width]).T
+kernel = gaussian(k_width,sigma)
+kernel /= np.sum(kernel)
+kernel = kernel.reshape(k_width,1)
 rect_mat_smoothed = convolve2d(rect_mat, kernel, mode='same', boundary='symm')
 lmrks_mat_smoothed = convolve2d(lmrks_mat, kernel, mode='same', boundary='symm')
 
-#run back through final stage of extract to write new aligned images
+# run back through final stage of extract to write new aligned images
 data = [ExtractSubprocessor.Data(filename,
                                  [tuple(rect.astype(int))],
-                                 [lmrks.reshape(68,2)]
-                                 ) for filename, rect, lmrks in zip(dst_image_paths, rect_mat_smoothed, lmrks_mat_smoothed)]
+                                 [lmrks.reshape(68, 2)]
+                                 ) for filename, rect, lmrks in
+        zip(dst_image_paths, rect_mat_smoothed, lmrks_mat_smoothed)]
 image_size = 512 if face_type < FaceType.HEAD else 768
 io.log_info('Writing smoothed alignments: ')
 ret = ExtractSubprocessor(data,
