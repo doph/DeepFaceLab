@@ -73,7 +73,7 @@ def alignments_generator():
             continue
         yield dflimg
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     # get images from input and aligned dirs
     dst_image_paths = sorted(pathex.get_image_paths(input_path, return_Path_class=True))
     lmrks_dict = {dflimg.get_source_filename(): {'rect': dflimg.get_source_rect(),
