@@ -49,6 +49,7 @@ class ExtractSubprocessor(Subprocessor):
             self.cpu_only             = client_dict['device_type'] == 'CPU'
             self.final_output_path    = client_dict['final_output_path']
             self.output_debug_path    = client_dict['output_debug_path']
+            self.stabilize_n          = client_dict['stabilize_n']
 
             #transfer and set stdin in order to work code.interact in debug subprocess
             stdin_fd         = client_dict['stdin_fd']
@@ -188,7 +189,7 @@ class ExtractSubprocessor(Subprocessor):
                     rects_p[j] = tuple(rect_p)
                 landmarks_p = landmarks_extractor.extract(rotated_image, rects_p, rects_extractor if (not extract_from_dflimg and data.landmarks_accurate) else None, is_bgr=True)
                 for j, lmrks in enumerate(landmarks_p):
-                    if landmarks_a[j] == None:
+                    if landmarks_a[j] is None:
                         landmarks_a[j] = lmrks / stabilize_n
                     else:
                         landmarks_a[j] += lmrks / stabilize_n
@@ -407,6 +408,7 @@ class ExtractSubprocessor(Subprocessor):
                      'max_faces_from_image':self.max_faces_from_image,
                      'output_debug_path': self.output_debug_path,
                      'final_output_path': self.final_output_path,
+                     'stabilize_n': self.stabilize_n,
                      'stdin_fd': sys.stdin.fileno() }
 
 
