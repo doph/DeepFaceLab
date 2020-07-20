@@ -164,7 +164,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
         device_config = nn.getCurrentDeviceConfig()
         devices = device_config.devices
         self.model_data_format = "NCHW" if len(devices) != 0 and not self.is_debug() else "NHWC"
-        nn.initialize(data_format=self.model_data_format)
+        nn.initialize(data_format=self.model_data_format, use_amp=self.use_amp)
         tf = nn.tf
 
         self.resolution = resolution = self.options['resolution']
