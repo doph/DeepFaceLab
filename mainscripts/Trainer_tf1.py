@@ -5,12 +5,19 @@ import threading
 import time
 import numpy as np
 import itertools
+import math
 from pathlib import Path
 from core import pathex
 from core import imagelib
 import cv2
+
 import models
+
 from core.interact import interact as io
+from core.leras import nn
+from core.cv2ex import *
+from core.interact import interact as io
+
 
 def trainerThread (s2c, c2s, e,
                     model_class_name = None,
@@ -26,6 +33,10 @@ def trainerThread (s2c, c2s, e,
                     silent_start=False,
                     execute_programs = None,
                     debug=False,
+                    config_file=None,
+                    target_iter=None,
+                    precision=None,
+                    bs_per_gpu=None,
                     use_amp=None,
                     opt=None,
                     lr=None,
@@ -46,7 +57,8 @@ def trainerThread (s2c, c2s, e,
             if not saved_models_path.exists():
                 saved_models_path.mkdir(exist_ok=True, parents=True)
 
-            model = models.import_model(model_class_name)(
+
+            model = models.import_model_tf1(model_class_name)(
                         is_training=True,
                         saved_models_path=saved_models_path,
                         training_data_src_path=training_data_src_path,
@@ -59,10 +71,14 @@ def trainerThread (s2c, c2s, e,
                         cpu_only=cpu_only,
                         silent_start=silent_start,
                         debug=debug,
+                        config_file=config_file,
+                        target_iter=target_iter,
+                        precision=precision,
+                        bs_per_gpu=bs_per_gpu,
                         use_amp=use_amp,
                         opt=opt,
                         lr=lr,
-                        decay_step=decay_step
+                        decay_step=decay_step,
                         )
 
             is_reached_goal = model.is_reached_iter_goal()
@@ -101,6 +117,23 @@ def trainerThread (s2c, c2s, e,
 
             execute_programs = [ [x[0], x[1], time.time() ] for x in execute_programs ]
 
+            tf = nn.tf
+  
+            list_globals_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            print('initializing variables ... ')
+            list_init = []
+            for x in [n for n in list_globals_vars]:
+                if 'Adam' in x.name or 'RMSProp' in x.name or 'beta' in x.name or 'loss_scale' in x.name or 'good_steps' in x.name:
+                    if not nn.tf_sess.run(nn.tf.is_variable_initialized(x)):
+                        list_init.append(x)
+            nn.tf_sess.run(tf.variables_initializer(list_init))
+            nn.tf_sess.run(model.global_step.initializer)
+            run_opts = tf.RunOptions(report_tensor_allocations_upon_oom = False)
+            print('done ')
+
+            # ( (warped_src, target_src, target_srcm_all), \
+            #   (warped_dst, target_dst, target_dstm_all) ) = model.generate_next_samples()
+
             for i in itertools.count(0,1):
                 if not debug:
                     cur_time = time.time()
@@ -128,8 +161,96 @@ def trainerThread (s2c, c2s, e,
                             io.log_info("Trying to do the first iteration. If an error occurs, reduce the model parameters.")
                             io.log_info("")
 
-                        iter, iter_time = model.train_one_iter()
+                        t_start = time.time()
+                        ( (warped_src, target_src, target_srcm_all), \
+                          (warped_dst, target_dst, target_dstm_all) ) = model.generate_next_samples()
 
+                        list_loss = []
+
+                        # Train auto-encoder
+                        
+                        # Train different parts of the network in sequence
+                        # More accurate gradient, Slower
+                        if True:
+                            _, src_loss, dst_loss, learning_rate = nn.tf_sess.run([model.G_train_op, model.src_loss, model.dst_loss, model.learning_rate], feed_dict={
+                                model.warped_src :warped_src,
+                                model.target_src :target_src,
+                                model.target_srcm_all:target_srcm_all,
+                                model.warped_dst :warped_dst,
+                                model.target_dst :target_dst,
+                                model.target_dstm_all:target_dstm_all})
+
+                            src_loss = 2.0 if math.isnan(src_loss) else src_loss
+                            dst_loss = 2.0 if math.isnan(dst_loss) else dst_loss
+
+                            list_loss = [float(src_loss), float(dst_loss)]
+
+                            # Train face style
+                            if model.options['true_face_power'] != 0:
+                                _, _D_code_loss = nn.tf_sess.run([model.D_code_train_op, model.D_code_loss], feed_dict={
+                                    model.warped_src :warped_src,
+                                    model.target_src :target_src,
+                                    model.target_srcm_all:target_srcm_all,
+                                    model.warped_dst :warped_dst,
+                                    model.target_dst :target_dst,
+                                    model.target_dstm_all:target_dstm_all})
+
+                            # Train GAN
+                            if model.options['gan_power'] != 0:
+                                _, D_src_dst_loss = nn.tf_sess.run([model.D_src_dst_train_op, model.D_src_dst_loss], feed_dict={
+                                    model.warped_src :warped_src,
+                                    model.target_src :target_src,
+                                    model.target_srcm_all:target_srcm_all,
+                                    model.warped_dst :warped_dst,
+                                    model.target_dst :target_dst,
+                                    model.target_dstm_all:target_dstm_all})
+
+                        # Train different parts of the network in parallel
+                        # Less accurate gradient, Faster
+                        if False:
+                            _G_train_op, _D_code_train_op, _D_src_dst_train_op, src_loss, dst_loss, D_code_loss, D_src_dst_loss = nn.tf_sess.run(
+                                [model.G_train_op, model.D_code_train_op, model.D_src_dst_train_op, model.src_loss, model.dst_loss, model.D_code_loss, model.D_src_dst_loss], feed_dict={
+                                model.warped_src :warped_src,
+                                model.target_src :target_src,
+                                model.target_srcm_all:target_srcm_all,
+                                model.warped_dst :warped_dst,
+                                model.target_dst :target_dst,
+                                model.target_dstm_all:target_dstm_all})
+                            list_loss = [float(src_loss), float(dst_loss), float(D_code_loss), float(D_src_dst_loss)]                            
+
+
+                        model.loss_history.append ( list_loss )
+                        model.iter += 1
+                        iter_time = time.time() - t_start
+                        iter = model.get_iter()
+
+
+                        if (not io.is_colab() and iter % 200 == 0) or \
+                           (io.is_colab() and iter % 200 == 0):
+                            plist = []
+
+                            if io.is_colab():
+                                previews = model.get_previews()
+                                for i in range(len(previews)):
+                                    name, bgr = previews[i]
+                                    plist += [ (bgr, model.get_strpath_storage_for_file('preview_%s.jpg' % (name) ) ) ]
+
+                            if model.write_preview_history:
+                                previews = model.get_static_previews()
+                                for i in range(len(previews)):
+                                    name, bgr = previews[i]
+                                    path = model.preview_history_path / name
+                                    path.mkdir(parents=True, exist_ok=True)
+                                    plist += [ ( bgr, str ( path / ( f'{iter:07d}.jpg') ) ) ]
+                                    if not io.is_colab():
+                                        plist += [ ( bgr, str ( path / ( '_last.jpg' ) )) ]
+                                                               
+                            for preview, filepath in plist:
+                                preview_lh = model.get_loss_history_preview(model.loss_history, iter, preview.shape[1], preview.shape[2])
+                                img = (np.concatenate ( [preview_lh, preview], axis=0 ) * 255).astype(np.uint8)
+                                cv2_imwrite (filepath, img )                            
+                        # iter, iter_time = model.train_one_iter()
+                        
                         loss_history = model.get_loss_history()
                         time_str = time.strftime("[%H:%M:%S]")
                         if iter_time >= 10:
@@ -143,14 +264,14 @@ def trainerThread (s2c, c2s, e,
                             mean_loss = np.mean ( loss_history[save_iter:iter], axis=0)
 
                             for loss_value in mean_loss:
-                                loss_string += "[%.4f]" % (loss_value)
+                                loss_string += "[%.5f]" % (loss_value)
 
                             io.log_info (loss_string)
 
                             save_iter = iter
                         else:
                             for loss_value in loss_history[-1]:
-                                loss_string += "[%.4f]" % (loss_value)
+                                loss_string += "[%.5f]" % (loss_value)
 
                             if io.is_colab():
                                 io.log_info ('\r' + loss_string, end='')
@@ -161,9 +282,10 @@ def trainerThread (s2c, c2s, e,
                             model_save()
 
                         if model.get_target_iter() != 0 and model.is_reached_iter_goal():
-                            io.log_info ('Reached target iteration.')
+                            io.log_info ('\nReached target iteration.')
                             model_save()
                             is_reached_goal = True
+                            break
                             io.log_info ('You can use preview now.')
 
                 if not is_reached_goal and (time.time() - last_save_time) >= save_interval_min*60:
@@ -198,9 +320,9 @@ def trainerThread (s2c, c2s, e,
                 if i == -1:
                     break
 
-
-
             model.finalize()
+
+
 
         except Exception as e:
             print ('Error: %s' % (str(e)))
@@ -209,9 +331,8 @@ def trainerThread (s2c, c2s, e,
     c2s.put ( {'op':'close'} )
 
 
-
 def main(**kwargs):
-    io.log_info ("Running trainer (DFL).\r\n")
+    io.log_info ("Running trainer (TF1).\r\n")
 
     no_preview = kwargs.get('no_preview', False)
 

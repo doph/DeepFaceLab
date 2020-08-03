@@ -8,3 +8,6 @@
 !*.sh
 !logs/
 !logs/**
+!mainscripts/
+!models/
+!models/Model_SAEHD/
