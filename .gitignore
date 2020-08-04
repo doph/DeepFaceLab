@@ -11,3 +11,5 @@
 !mainscripts/
 !models/
 !models/Model_SAEHD/
+!configs/
+!configs/**
