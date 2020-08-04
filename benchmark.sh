@@ -10,9 +10,17 @@ MODEL=SAEHD
 # BS_PER_GPU=128
 # BS_PER_GPU2=256
 
-CONFIG=SAEHD_liae_ud_512_256_128_128_32
-BS_PER_GPU=8
-BS_PER_GPU2=16
+CONFIG=SAEHD_liae_ud_256_128_64_64_32
+BS_PER_GPU=32
+BS_PER_GPU2=64
+
+# CONFIG=SAEHD_liae_ud_512_256_128_128_32
+# BS_PER_GPU=8
+# BS_PER_GPU2=16
+
+# CONFIG=SAEHD_liae_ud_gan_512_256_128_128_32
+# BS_PER_GPU=8
+
 
 
 MONITOR_INTERVAL=0.5
@@ -71,19 +79,19 @@ run_benchmark() {
 
 mkdir -p ${OUTPUT_DIR}/${GPU_NAME}
 
-# run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 $BS_PER_GPU
+run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 $BS_PER_GPU
+
+wait $! 
+run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 $BS_PER_GPU
+
+wait $! 
+run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
 
 # wait $! 
-# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 $BS_PER_GPU
+# run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 $BS_PER_GPU
 
 # wait $! 
-# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
+# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 $BS_PER_GPU
 
-wait $! 
-run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 $BS_PER_GPU
-
-wait $! 
-run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 $BS_PER_GPU
-
-wait $! 
-run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 ${BS_PER_GPU2}
+# wait $! 
+# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 ${BS_PER_GPU2}

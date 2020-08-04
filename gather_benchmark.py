@@ -6,7 +6,7 @@ list_gpu_type = ['QuadroRTX8000']
 path_config = '/home/ubuntu/dfl-benchmark/output'
 output_file = 'benchmark.csv'
 list_config = [
-'SAEHD_liae_ud_gan_512_256_128_128_64' \
+'SAEHD_liae_ud_512_256_128_128_32', 'SAEHD_liae_ud_gan_512_256_128_128_32', 'SAEHD_liae_ud_256_128_64_64_32' \
 ]
 list_gpu_idxs = ['0']
 
