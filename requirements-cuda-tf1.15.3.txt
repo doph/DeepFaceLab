@@ -9,3 +9,4 @@ colorama
 labelme==4.2.9
 tensorflow-gpu==1.15.3
 pyqt5
+pandas

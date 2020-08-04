@@ -33,7 +33,6 @@ def trainerThread (s2c, c2s, e,
                     silent_start=False,
                     execute_programs = None,
                     debug=False,
-                    config_file=None,
                     target_iter=None,
                     precision=None,
                     bs_per_gpu=None,
@@ -41,6 +40,7 @@ def trainerThread (s2c, c2s, e,
                     opt=None,
                     lr=None,
                     decay_step=None,
+                    config_file=None,
                     **kwargs):
     while True:
         try:
@@ -71,7 +71,6 @@ def trainerThread (s2c, c2s, e,
                         cpu_only=cpu_only,
                         silent_start=silent_start,
                         debug=debug,
-                        config_file=config_file,
                         target_iter=target_iter,
                         precision=precision,
                         bs_per_gpu=bs_per_gpu,
@@ -79,6 +78,7 @@ def trainerThread (s2c, c2s, e,
                         opt=opt,
                         lr=lr,
                         decay_step=decay_step,
+                        config_file=config_file                        
                         )
 
             is_reached_goal = model.is_reached_iter_goal()

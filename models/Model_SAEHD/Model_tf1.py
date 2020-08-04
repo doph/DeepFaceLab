@@ -13,162 +13,201 @@ from models import ModelBase
 from samplelib import *
 
 
-
 class SAEHDModel(ModelBase):
 
     #override
     def on_initialize_options(self):
-        print('Model_tf1 is used ---------------------------')
         device_config = nn.getCurrentDeviceConfig()
+        if not self.config_file is None:
+            with open(self.config_file) as file:
+                options_list = yaml.load(file, Loader=yaml.FullLoader)
 
-        self.options['use_syn'] = False
-        self.options['use_benchmark'] = False
-
-        lowest_vram = 2
-        if len(device_config.devices) != 0:
-            lowest_vram = device_config.devices.get_worst_device().total_mem_gb
-
-        if lowest_vram >= 4:
-            suggest_batch_size = 8
-        else:
-            suggest_batch_size = 4
-
-        yn_str = {True:'y',False:'n'}
-        min_res = 64
-        max_res = 640
-
-        default_resolution         = self.options['resolution']         = self.load_or_def_option('resolution', 128)
-        default_face_type          = self.options['face_type']          = self.load_or_def_option('face_type', 'f')
-        default_models_opt_on_gpu  = self.options['models_opt_on_gpu']  = self.load_or_def_option('models_opt_on_gpu', True)
-
-        archi = self.load_or_def_option('archi', 'df')
-        archi = {'dfuhd':'df-u','liaeuhd':'liae-u'}.get(archi, archi) #backward comp
-        default_archi              = self.options['archi'] = archi
-
-        default_ae_dims            = self.options['ae_dims']            = self.load_or_def_option('ae_dims', 256)
-        default_e_dims             = self.options['e_dims']             = self.load_or_def_option('e_dims', 64)
-        default_d_dims             = self.options['d_dims']             = self.options.get('d_dims', None)
-        default_d_mask_dims        = self.options['d_mask_dims']        = self.options.get('d_mask_dims', None)
-        default_masked_training    = self.options['masked_training']    = self.load_or_def_option('masked_training', True)
-        default_eyes_prio          = self.options['eyes_prio']          = self.load_or_def_option('eyes_prio', False)
-        default_uniform_yaw        = self.options['uniform_yaw']        = self.load_or_def_option('uniform_yaw', False)
-
-        lr_dropout = self.load_or_def_option('lr_dropout', 'n')
-        lr_dropout = {True:'y', False:'n'}.get(lr_dropout, lr_dropout) #backward comp
-        default_lr_dropout         = self.options['lr_dropout'] = lr_dropout
-
-        default_random_warp        = self.options['random_warp']        = self.load_or_def_option('random_warp', True)
-        default_gan_power          = self.options['gan_power']          = self.load_or_def_option('gan_power', 0.0)
-        default_gan_type          = self.options['gan_type']            = self.load_or_def_option('gan_type', 'patch')
-        default_true_face_power    = self.options['true_face_power']    = self.load_or_def_option('true_face_power', 0.0)
-        default_face_style_power   = self.options['face_style_power']   = self.load_or_def_option('face_style_power', 0.0)
-        default_bg_style_power     = self.options['bg_style_power']     = self.load_or_def_option('bg_style_power', 0.0)
-        default_ct_mode            = self.options['ct_mode']            = self.load_or_def_option('ct_mode', 'none')
-        default_clipgrad           = self.options['clipgrad']           = self.load_or_def_option('clipgrad', False)
-        default_pretrain           = self.options['pretrain']           = self.load_or_def_option('pretrain', False)
-
-        ask_override = self.ask_override()
-        if self.is_first_run() or ask_override:
-            self.ask_autobackup_hour()
-            self.ask_write_preview_history()
-            self.ask_target_iter()
-            self.ask_random_flip()
-            self.ask_batch_size(suggest_batch_size)
-
-        if self.is_first_run():
-            resolution = io.input_int("Resolution", default_resolution, add_info="64-640", help_message="More resolution requires more VRAM and time to train. Value will be adjusted to multiple of 16 and 32 for -d archi.")
-            resolution = np.clip ( (resolution // 16) * 16, min_res, max_res)
-            self.options['resolution'] = resolution
-            self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','head'], help_message="Half / mid face / full face / whole face / head. Half face has better resolution, but covers less area of cheeks. Mid face is 30% wider than half face. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
-
-            while True:
-                archi = io.input_str ("AE architecture", default_archi, help_message=\
-                    """
-                    'df' keeps more identity-preserved face.
-                    'liae' can fix overly different face shapes.
-                    '-u' increased likeness of the face.
-                    '-d' (experimental) doubling the resolution using the same computation cost.
-                    Examples: df, liae, df-d, df-ud, liae-ud, ...
-                    """).lower()
-
-                archi_split = archi.split('-')
-
-                if len(archi_split) == 2:
-                    archi_type, archi_opts = archi_split
-                elif len(archi_split) == 1:
-                    archi_type, archi_opts = archi_split[0], None
-                else:
-                    continue
-
-                if archi_type not in ['df', 'liae']:
-                    continue
-
-                if archi_opts is not None:
-                    if len(archi_opts) == 0:
-                        continue
-                    if len([ 1 for opt in archi_opts if opt not in ['u','d'] ]) != 0:
-                        continue
-                    
-                    if 'd' in archi_opts:
-                        self.options['resolution'] = np.clip ( (self.options['resolution'] // 32) * 32, min_res, max_res)
-
-                break
-            self.options['archi'] = archi
-
-        default_d_dims             = self.options['d_dims']             = self.load_or_def_option('d_dims', 64)
-
-        default_d_mask_dims        = default_d_dims // 3
-        default_d_mask_dims        += default_d_mask_dims % 2
-        default_d_mask_dims        = self.options['d_mask_dims']        = self.load_or_def_option('d_mask_dims', default_d_mask_dims)
-
-        if self.is_first_run():
-            self.options['ae_dims'] = np.clip ( io.input_int("AutoEncoder dimensions", default_ae_dims, add_info="32-1024", help_message="All face information will packed to AE dims. If amount of AE dims are not enough, then for example closed eyes will not be recognized. More dims are better, but require more VRAM. You can fine-tune model size to fit your GPU." ), 32, 1024 )
-
-            e_dims = np.clip ( io.input_int("Encoder dimensions", default_e_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
-            self.options['e_dims'] = e_dims + e_dims % 2
-
-            d_dims = np.clip ( io.input_int("Decoder dimensions", default_d_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
-            self.options['d_dims'] = d_dims + d_dims % 2
-
-            d_mask_dims = np.clip ( io.input_int("Decoder mask dimensions", default_d_mask_dims, add_info="16-256", help_message="Typical mask dimensions = decoder dimensions / 3. If you manually cut out obstacles from the dst mask, you can increase this parameter to achieve better quality." ), 16, 256 )
-            self.options['d_mask_dims'] = d_mask_dims + d_mask_dims % 2
-
-        if self.is_first_run() or ask_override:
-            if self.options['face_type'] == 'wf' or self.options['face_type'] == 'head':
-                self.options['masked_training']  = io.input_bool ("Masked training", default_masked_training, help_message="This option is available only for 'whole_face' or 'head' type. Masked training clips training area to full_face mask or XSeg mask, thus network will train the faces properly.")
-
-            self.options['eyes_prio'] = io.input_bool ("Eyes priority", default_eyes_prio, help_message='Helps to fix eye problems during training like "alien eyes" and wrong eyes direction ( especially on HD architectures ) by forcing the neural network to train eyes with higher priority. before/after https://i.imgur.com/YQHOuSR.jpg ')
-            self.options['uniform_yaw'] = io.input_bool ("Uniform yaw distribution of samples", default_uniform_yaw, help_message='Helps to fix blurry side faces due to small amount of them in the faceset.')
-
-        if self.is_first_run() or ask_override:
-            self.options['models_opt_on_gpu'] = io.input_bool ("Place models and optimizer on GPU", default_models_opt_on_gpu, help_message="When you train on one GPU, by default model and optimizer weights are placed on GPU to accelerate the process. You can place they on CPU to free up extra VRAM, thus set bigger dimensions.")
-
-            self.options['lr_dropout']  = io.input_str (f"Use learning rate dropout", default_lr_dropout, ['n','y','cpu'], help_message="When the face is trained enough, you can enable this option to get extra sharpness and reduce subpixel shake for less amount of iterations.\nn - disabled.\ny - enabled\ncpu - enabled on CPU. This allows not to use extra VRAM, sacrificing 20% time of iteration.")
-
-            self.options['random_warp'] = io.input_bool ("Enable random warp of samples", default_random_warp, help_message="Random warp is required to generalize facial expressions of both faces. When the face is trained enough, you can disable it to get extra sharpness and reduce subpixel shake for less amount of iterations.")
-
-            self.options['gan_power'] = np.clip ( io.input_number ("GAN power", default_gan_power, add_info="0.0 .. 10.0", help_message="Train the network in Generative Adversarial manner. Accelerates the speed of training. Forces the neural network to learn small details of the face. Enable it only when the face is trained enough and don't disable. Typical value is 1.0"), 0.0, 10.0 )
-
+            self.options['use_syn'] = options_list['use_syn']
+            self.options['num_gpu'] = len(device_config.devices)
+            self.options['bs_per_gpu'] = int(self.bs_per_gpu)
+            self.options['masked_training'] = options_list['masked_training']
+            self.options['uniform_yaw'] = options_list['uniform_yaw']
+            self.pretrain_just_disabled = options_list['pretrain_just_disabled']
+            self.options['autobackup_hour'] = options_list['autobackup_hour']
+            self.options['write_preview_history'] = options_list['write_preview_history']
+            self.options['target_iter'] = int(options_list['target_iter'])
+            self.options['random_flip'] = options_list['random_flip']
+            self.options['batch_size'] = self.batch_size = self.options['bs_per_gpu'] * self.options['num_gpu']
+            self.options['resolution'] = options_list['resolution']
+            self.options['face_type'] = options_list['face_type']
+            self.options['models_opt_on_gpu'] = options_list['models_opt_on_gpu']
+            self.options['archi'] = options_list['archi']
+            self.options['ae_dims'] = options_list['ae_dims']
+            self.options['e_dims'] = options_list['e_dims']
+            self.options['d_dims'] = options_list['d_dims']
+            self.options['d_mask_dims'] = options_list['d_mask_dims']
+            self.options['eyes_prio'] = options_list['eyes_prio']
+            self.options['lr_dropout'] = options_list['lr_dropout']
+            self.options['random_warp'] = options_list['random_warp']
+            self.options['gan_power'] = options_list['gan_power']
             if self.options['gan_power'] > 0:
-                self.options['gan_type'] = io.input_str (f"GAN type", default_gan_type, ['unetpatch','patch'], help_message="Type of GAN.")
+                self.options['gan_type'] = options_list['gan_type']
+            self.options['true_face_power'] = options_list['true_face_power']
+            self.options['face_style_power'] = options_list['face_style_power']
+            self.options['bg_style_power'] = options_list['bg_style_power']
+            self.options['ct_mode'] = options_list['ct_mode']
+            self.options['clipgrad'] = options_list['clipgrad']
+            self.options['pretrain'] = options_list['pretrain']
 
-            if 'df' in self.options['archi']:
-                self.options['true_face_power'] = np.clip ( io.input_number ("'True face' power.", default_true_face_power, add_info="0.0000 .. 1.0", help_message="Experimental option. Discriminates result face to be more like src face. Higher value - stronger discrimination. Typical value is 0.01 . Comparison - https://i.imgur.com/czScS9q.png"), 0.0, 1.0 )
+            if self.options['use_syn']:
+                self.syn_warped_src = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_target_src = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_target_srcm_all = np.zeros((self.options['batch_size'], 1, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_warped_dst = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_target_dst = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_target_dstm_all = np.zeros((self.options['batch_size'], 1, self.options['resolution'], self.options['resolution']), dtype=np.float32) 
+        else:
+            self.options['use_syn'] = False
+            lowest_vram = 2
+            if len(device_config.devices) != 0:
+                lowest_vram = device_config.devices.get_worst_device().total_mem_gb
+
+            if lowest_vram >= 4:
+                suggest_batch_size = 8
             else:
-                self.options['true_face_power'] = 0.0
+                suggest_batch_size = 4
 
-            self.options['face_style_power'] = np.clip ( io.input_number("Face style power", default_face_style_power, add_info="0.0..100.0", help_message="Learn the color of the predicted face to be the same as dst inside mask. If you want to use this option with 'whole_face' you have to use XSeg trained mask. Warning: Enable it only after 10k iters, when predicted face is clear enough to start learn style. Start from 0.001 value and check history changes. Enabling this option increases the chance of model collapse."), 0.0, 100.0 )
-            self.options['bg_style_power'] = np.clip ( io.input_number("Background style power", default_bg_style_power, add_info="0.0..100.0", help_message="Learn the area outside mask of the predicted face to be the same as dst. If you want to use this option with 'whole_face' you have to use XSeg trained mask. For whole_face you have to use XSeg trained mask. This can make face more like dst. Enabling this option increases the chance of model collapse. Typical value is 2.0"), 0.0, 100.0 )
+            yn_str = {True:'y',False:'n'}
+            min_res = 64
+            max_res = 640
 
-            self.options['ct_mode'] = io.input_str (f"Color transfer for src faceset", default_ct_mode, ['none','rct','lct','mkl','idt','sot'], help_message="Change color distribution of src samples close to dst samples. Try all modes to find the best.")
-            self.options['clipgrad'] = io.input_bool ("Enable gradient clipping", default_clipgrad, help_message="Gradient clipping reduces chance of model collapse, sacrificing speed of training.")
+            default_resolution         = self.options['resolution']         = self.load_or_def_option('resolution', 128)
+            default_face_type          = self.options['face_type']          = self.load_or_def_option('face_type', 'f')
+            default_models_opt_on_gpu  = self.options['models_opt_on_gpu']  = self.load_or_def_option('models_opt_on_gpu', True)
 
-            self.options['pretrain'] = io.input_bool ("Enable pretraining mode", default_pretrain, help_message="Pretrain the model with large amount of various faces. After that, model can be used to train the fakes more quickly.")
+            archi = self.load_or_def_option('archi', 'df')
+            archi = {'dfuhd':'df-u','liaeuhd':'liae-u'}.get(archi, archi) #backward comp
+            default_archi              = self.options['archi'] = archi
 
-        if self.options['pretrain'] and self.get_pretraining_data_path() is None:
-            raise Exception("pretraining_data_path is not defined")
+            default_ae_dims            = self.options['ae_dims']            = self.load_or_def_option('ae_dims', 256)
+            default_e_dims             = self.options['e_dims']             = self.load_or_def_option('e_dims', 64)
+            default_d_dims             = self.options['d_dims']             = self.options.get('d_dims', None)
+            default_d_mask_dims        = self.options['d_mask_dims']        = self.options.get('d_mask_dims', None)
+            default_masked_training    = self.options['masked_training']    = self.load_or_def_option('masked_training', True)
+            default_eyes_prio          = self.options['eyes_prio']          = self.load_or_def_option('eyes_prio', False)
+            default_uniform_yaw        = self.options['uniform_yaw']        = self.load_or_def_option('uniform_yaw', False)
 
-        self.pretrain_just_disabled = (default_pretrain == True and self.options['pretrain'] == False)
+            lr_dropout = self.load_or_def_option('lr_dropout', 'n')
+            lr_dropout = {True:'y', False:'n'}.get(lr_dropout, lr_dropout) #backward comp
+            default_lr_dropout         = self.options['lr_dropout'] = lr_dropout
+
+            default_random_warp        = self.options['random_warp']        = self.load_or_def_option('random_warp', True)
+            default_gan_power          = self.options['gan_power']          = self.load_or_def_option('gan_power', 0.0)
+            default_gan_type          = self.options['gan_type']            = self.load_or_def_option('gan_type', 'patch')
+            default_true_face_power    = self.options['true_face_power']    = self.load_or_def_option('true_face_power', 0.0)
+            default_face_style_power   = self.options['face_style_power']   = self.load_or_def_option('face_style_power', 0.0)
+            default_bg_style_power     = self.options['bg_style_power']     = self.load_or_def_option('bg_style_power', 0.0)
+            default_ct_mode            = self.options['ct_mode']            = self.load_or_def_option('ct_mode', 'none')
+            default_clipgrad           = self.options['clipgrad']           = self.load_or_def_option('clipgrad', False)
+            default_pretrain           = self.options['pretrain']           = self.load_or_def_option('pretrain', False)
+
+            ask_override = self.ask_override()
+            if self.is_first_run() or ask_override:
+                self.ask_autobackup_hour()
+                self.ask_write_preview_history()
+                self.ask_target_iter()
+                self.ask_random_flip()
+                self.ask_batch_size(suggest_batch_size)
+
+            if self.is_first_run():
+                resolution = io.input_int("Resolution", default_resolution, add_info="64-640", help_message="More resolution requires more VRAM and time to train. Value will be adjusted to multiple of 16 and 32 for -d archi.")
+                resolution = np.clip ( (resolution // 16) * 16, min_res, max_res)
+                self.options['resolution'] = resolution
+                self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','head'], help_message="Half / mid face / full face / whole face / head. Half face has better resolution, but covers less area of cheeks. Mid face is 30% wider than half face. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
+
+                while True:
+                    archi = io.input_str ("AE architecture", default_archi, help_message=\
+                        """
+                        'df' keeps more identity-preserved face.
+                        'liae' can fix overly different face shapes.
+                        '-u' increased likeness of the face.
+                        '-d' (experimental) doubling the resolution using the same computation cost.
+                        Examples: df, liae, df-d, df-ud, liae-ud, ...
+                        """).lower()
+
+                    archi_split = archi.split('-')
+
+                    if len(archi_split) == 2:
+                        archi_type, archi_opts = archi_split
+                    elif len(archi_split) == 1:
+                        archi_type, archi_opts = archi_split[0], None
+                    else:
+                        continue
+
+                    if archi_type not in ['df', 'liae']:
+                        continue
+
+                    if archi_opts is not None:
+                        if len(archi_opts) == 0:
+                            continue
+                        if len([ 1 for opt in archi_opts if opt not in ['u','d'] ]) != 0:
+                            continue
+                        
+                        if 'd' in archi_opts:
+                            self.options['resolution'] = np.clip ( (self.options['resolution'] // 32) * 32, min_res, max_res)
+
+                    break
+                self.options['archi'] = archi
+
+            default_d_dims             = self.options['d_dims']             = self.load_or_def_option('d_dims', 64)
+
+            default_d_mask_dims        = default_d_dims // 3
+            default_d_mask_dims        += default_d_mask_dims % 2
+            default_d_mask_dims        = self.options['d_mask_dims']        = self.load_or_def_option('d_mask_dims', default_d_mask_dims)
+
+            if self.is_first_run():
+                self.options['ae_dims'] = np.clip ( io.input_int("AutoEncoder dimensions", default_ae_dims, add_info="32-1024", help_message="All face information will packed to AE dims. If amount of AE dims are not enough, then for example closed eyes will not be recognized. More dims are better, but require more VRAM. You can fine-tune model size to fit your GPU." ), 32, 1024 )
+
+                e_dims = np.clip ( io.input_int("Encoder dimensions", default_e_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
+                self.options['e_dims'] = e_dims + e_dims % 2
+
+                d_dims = np.clip ( io.input_int("Decoder dimensions", default_d_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
+                self.options['d_dims'] = d_dims + d_dims % 2
+
+                d_mask_dims = np.clip ( io.input_int("Decoder mask dimensions", default_d_mask_dims, add_info="16-256", help_message="Typical mask dimensions = decoder dimensions / 3. If you manually cut out obstacles from the dst mask, you can increase this parameter to achieve better quality." ), 16, 256 )
+                self.options['d_mask_dims'] = d_mask_dims + d_mask_dims % 2
+
+            if self.is_first_run() or ask_override:
+                if self.options['face_type'] == 'wf' or self.options['face_type'] == 'head':
+                    self.options['masked_training']  = io.input_bool ("Masked training", default_masked_training, help_message="This option is available only for 'whole_face' or 'head' type. Masked training clips training area to full_face mask or XSeg mask, thus network will train the faces properly.")
+
+                self.options['eyes_prio'] = io.input_bool ("Eyes priority", default_eyes_prio, help_message='Helps to fix eye problems during training like "alien eyes" and wrong eyes direction ( especially on HD architectures ) by forcing the neural network to train eyes with higher priority. before/after https://i.imgur.com/YQHOuSR.jpg ')
+                self.options['uniform_yaw'] = io.input_bool ("Uniform yaw distribution of samples", default_uniform_yaw, help_message='Helps to fix blurry side faces due to small amount of them in the faceset.')
+
+            if self.is_first_run() or ask_override:
+                self.options['models_opt_on_gpu'] = io.input_bool ("Place models and optimizer on GPU", default_models_opt_on_gpu, help_message="When you train on one GPU, by default model and optimizer weights are placed on GPU to accelerate the process. You can place they on CPU to free up extra VRAM, thus set bigger dimensions.")
+
+                self.options['lr_dropout']  = io.input_str (f"Use learning rate dropout", default_lr_dropout, ['n','y','cpu'], help_message="When the face is trained enough, you can enable this option to get extra sharpness and reduce subpixel shake for less amount of iterations.\nn - disabled.\ny - enabled\ncpu - enabled on CPU. This allows not to use extra VRAM, sacrificing 20% time of iteration.")
+
+                self.options['random_warp'] = io.input_bool ("Enable random warp of samples", default_random_warp, help_message="Random warp is required to generalize facial expressions of both faces. When the face is trained enough, you can disable it to get extra sharpness and reduce subpixel shake for less amount of iterations.")
+
+                self.options['gan_power'] = np.clip ( io.input_number ("GAN power", default_gan_power, add_info="0.0 .. 10.0", help_message="Train the network in Generative Adversarial manner. Accelerates the speed of training. Forces the neural network to learn small details of the face. Enable it only when the face is trained enough and don't disable. Typical value is 1.0"), 0.0, 10.0 )
+
+                if self.options['gan_power'] > 0:
+                    self.options['gan_type'] = io.input_str (f"GAN type", default_gan_type, ['patch','unetpatch'], help_message="Type of GAN.")
+
+                if 'df' in self.options['archi']:
+                    self.options['true_face_power'] = np.clip ( io.input_number ("'True face' power.", default_true_face_power, add_info="0.0000 .. 1.0", help_message="Experimental option. Discriminates result face to be more like src face. Higher value - stronger discrimination. Typical value is 0.01 . Comparison - https://i.imgur.com/czScS9q.png"), 0.0, 1.0 )
+                else:
+                    self.options['true_face_power'] = 0.0
+
+                self.options['face_style_power'] = np.clip ( io.input_number("Face style power", default_face_style_power, add_info="0.0..100.0", help_message="Learn the color of the predicted face to be the same as dst inside mask. If you want to use this option with 'whole_face' you have to use XSeg trained mask. Warning: Enable it only after 10k iters, when predicted face is clear enough to start learn style. Start from 0.001 value and check history changes. Enabling this option increases the chance of model collapse."), 0.0, 100.0 )
+                self.options['bg_style_power'] = np.clip ( io.input_number("Background style power", default_bg_style_power, add_info="0.0..100.0", help_message="Learn the area outside mask of the predicted face to be the same as dst. If you want to use this option with 'whole_face' you have to use XSeg trained mask. For whole_face you have to use XSeg trained mask. This can make face more like dst. Enabling this option increases the chance of model collapse. Typical value is 2.0"), 0.0, 100.0 )
+
+                self.options['ct_mode'] = io.input_str (f"Color transfer for src faceset", default_ct_mode, ['none','rct','lct','mkl','idt','sot'], help_message="Change color distribution of src samples close to dst samples. Try all modes to find the best.")
+                self.options['clipgrad'] = io.input_bool ("Enable gradient clipping", default_clipgrad, help_message="Gradient clipping reduces chance of model collapse, sacrificing speed of training.")
+
+                self.options['pretrain'] = io.input_bool ("Enable pretraining mode", default_pretrain, help_message="Pretrain the model with large amount of various faces. After that, model can be used to train the fakes more quickly.")
+
+            if self.options['pretrain'] and self.get_pretraining_data_path() is None:
+                raise Exception("pretraining_data_path is not defined")
+
+            self.pretrain_just_disabled = (default_pretrain == True and self.options['pretrain'] == False)
 
     #override
     def on_initialize(self):
@@ -717,81 +756,6 @@ class SAEHDModel(ModelBase):
     def onSave(self):
         for model, filename in io.progress_bar_generator(self.get_model_filename_list(), "Saving", leave=False):
             model.save_weights ( self.get_strpath_storage_for_file(filename) )
-
-
-    # # override
-    # def onTrainOneIter(self):
-    #     if self.get_iter() == 0 and not self.pretrain and not self.pretrain_just_disabled:
-    #         io.log_info('You are training the model from scratch. It is strongly recommended to use a pretrained model to speed up the training and improve the quality.\n')
-
-    #     bs = self.get_batch_size()
-
-    #     if self.options['use_syn'] and self.options['use_benchmark']:
-    #         warped_src = self.syn_warped_src
-    #         target_src = self.syn_target_src
-    #         target_srcm_all = self.syn_target_srcm_all
-    #         warped_dst = self.syn_warped_dst
-    #         target_dst = self.syn_target_dst
-    #         target_dstm_all = self.syn_target_dstm_all         
-    #     else:
-    #         # ( (warped_src, target_src, target_srcm_all), \
-    #         #   (warped_dst, target_dst, target_dstm_all) ) = self.generate_next_samples()
-
-    #         warped_src = self.fix_warped_src
-    #         target_src = self.fix_target_src
-    #         target_srcm_all = self.fix_target_srcm_all
-    #         warped_dst = self.fix_warped_dst
-    #         target_dst = self.fix_target_dst
-    #         target_dstm_all = self.fix_target_dstm_all   
-            
-    #     src_loss, dst_loss = self.src_dst_train (warped_src, target_src, target_srcm_all, warped_dst, target_dst, target_dstm_all)
-
-    #     for i in range(bs):
-    #         self.last_src_samples_loss.append (  (target_src[i], target_srcm_all[i], src_loss[i] )  )
-    #         self.last_dst_samples_loss.append (  (target_dst[i], target_dstm_all[i], dst_loss[i] )  )
-
-    #     if len(self.last_src_samples_loss) >= bs*16:
-    #         src_samples_loss = sorted(self.last_src_samples_loss, key=operator.itemgetter(2), reverse=True)
-    #         dst_samples_loss = sorted(self.last_dst_samples_loss, key=operator.itemgetter(2), reverse=True)
-
-    #         target_src      = np.stack( [ x[0] for x in src_samples_loss[:bs] ] )
-    #         target_srcm_all = np.stack( [ x[1] for x in src_samples_loss[:bs] ] )
-
-    #         target_dst      = np.stack( [ x[0] for x in dst_samples_loss[:bs] ] )
-    #         target_dstm_all = np.stack( [ x[1] for x in dst_samples_loss[:bs] ] )
-
-    #         src_loss, dst_loss = self.src_dst_train (target_src, target_src, target_srcm_all, target_dst, target_dst, target_dstm_all)
-    #         self.last_src_samples_loss = []
-    #         self.last_dst_samples_loss = []
-
-    #     if self.options['true_face_power'] != 0 and not self.pretrain:
-    #         self.D_train (warped_src, warped_dst)
-
-    #     if self.gan_power != 0:
-    #         self.D_src_dst_train (warped_src, target_src, target_srcm_all, warped_dst, target_dst, target_dstm_all)
-
-    #     return ( ('src_loss', np.mean(src_loss) ), ('dst_loss', np.mean(dst_loss) ), )
-
-
-    # def onDataOneIter(self):
-    #     if self.get_iter() == 0 and not self.pretrain and not self.pretrain_just_disabled:
-    #         io.log_info('You are training the model from scratch. It is strongly recommended to use a pretrained model to speed up the training and improve the quality.\n')
-
-    #     bs = self.get_batch_size()
-
-    #     if self.options['use_syn'] and self.options['use_benchmark']:
-    #         warped_src = self.syn_warped_src
-    #         target_src = self.syn_target_src
-    #         target_srcm_all = self.syn_target_srcm_all
-    #         warped_dst = self.syn_warped_dst
-    #         target_dst = self.syn_target_dst
-    #         target_dstm_all = self.syn_target_dstm_all         
-    #     else:
-    #         ( (warped_src, target_src, target_srcm_all), \
-    #           (warped_dst, target_dst, target_dstm_all) ) = self.generate_next_samples()
-
-    #     return ( ('loss_src', 0), ('loss_dst', 0) )
-
 
     #override
     def onGetPreview(self, samples):

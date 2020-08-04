@@ -30,6 +30,8 @@ def trainerThread (s2c, c2s, e,
                     opt=None,
                     lr=None,
                     decay_step=None,
+                    config_file=None,
+                    bs_per_gpu=None,
                     **kwargs):
     while True:
         try:
@@ -62,7 +64,9 @@ def trainerThread (s2c, c2s, e,
                         use_amp=use_amp,
                         opt=opt,
                         lr=lr,
-                        decay_step=decay_step
+                        decay_step=decay_step,
+                        config_file=config_file,
+                        bs_per_gpu=bs_per_gpu
                         )
 
             is_reached_goal = model.is_reached_iter_goal()
@@ -164,7 +168,12 @@ def trainerThread (s2c, c2s, e,
                             io.log_info ('Reached target iteration.')
                             model_save()
                             is_reached_goal = True
-                            io.log_info ('You can use preview now.')
+                            if config_file:
+                                io.log_info ('See saved log files and previews.')
+                                break
+                            else:
+                                io.log_info ('You can use preview now.')
+
 
                 if not is_reached_goal and (time.time() - last_save_time) >= save_interval_min*60:
                     last_save_time += save_interval_min*60

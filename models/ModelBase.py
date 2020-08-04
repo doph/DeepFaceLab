@@ -38,6 +38,8 @@ class ModelBase(object):
                        opt=None,
                        lr=None,
                        decay_step=None,
+                       config_file=None,
+                       bs_per_gpu=None,
                        **kwargs):
         self.is_training = is_training
         self.saved_models_path = saved_models_path
@@ -51,6 +53,8 @@ class ModelBase(object):
         self.opt=opt
         self.lr=lr
         self.decay_step=decay_step
+        self.config_file=config_file
+        self.bs_per_gpu=bs_per_gpu
         self.model_class_name = model_class_name = Path(inspect.getmodule(self).__file__).parent.name.rsplit("_", 1)[1]
 
         if force_model_class_name is None:
