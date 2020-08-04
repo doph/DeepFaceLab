@@ -86,10 +86,18 @@ class ExtractSubprocessor(Subprocessor):
             filepath = data.filepath
             cached_filepath, image = self.cached_image
             if cached_filepath != filepath:
-                image = cv2_imread( filepath )
+                image = cv2_imread( filepath ) # file bitdepth is unexpectedly retained to this point
                 if image is None:
                     self.log_err (f'Failed to open {filepath}, reason: cv2_imread() fail.')
                     return data
+                
+                # make bit-depth agnostic
+                image_type = image.dtype
+                image_type_max = np.iinfo(image_type).max if 'int' in image_type.name else 1
+                image = image.astype(np.float32) / image_type_max
+                image = image * 256 # detector seems to expect 8-bit
+                image = image.astype(np.uint8)
+                
                 image = imagelib.normalize_channels(image, 3)
                 image = imagelib.cut_odd_image(image)
                 self.cached_image = ( filepath, image )
