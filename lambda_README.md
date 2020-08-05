@@ -80,6 +80,7 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 --force-model-name your_model_name
 ```
 
+* __Please Please use `clipgrad=True` when you use AMP__. Otherwise gradient will explode at some point.
 * Two optimizers are offered: `rmsprop` and `adam`. We set default optimizer to `rmsprop` to keep it consistent with DFL. However, we recommend `Adam` optimizer for both AMP and FP32 training because it converges faster. __So the rule of thumb is always use `--api tf1` together with `--opt adam`.__
 * You can customize the initial learning rate `lr` and learning rate decay step `decay-step`. Precisely, the learning rate starts with the value of `lr`, then multiplied by `0.96` for every `decay-step`. __We recommend `lr=0.0001` if you train from scratch, and `lr=0.00001` to continue training at a late stage, or to train a model with GAN.__ `--decay-step 1000` seems to be a reasonable choice for the scale of the tasks.
 * __Reduce learning rate if you see loss increases / stuck at a high value (2.0)__. This is particularly useful for late stage of the training, and for contuning the training of a FP32 model in AMP.
