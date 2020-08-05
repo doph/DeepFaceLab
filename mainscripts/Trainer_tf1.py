@@ -179,12 +179,6 @@ def trainerThread (s2c, c2s, e,
                                 model.warped_dst :warped_dst,
                                 model.target_dst :target_dst,
                                 model.target_dstm_all:target_dstm_all})
-
-                            src_loss = 2.0 if math.isnan(src_loss) else src_loss
-                            dst_loss = 2.0 if math.isnan(dst_loss) else dst_loss
-
-                            list_loss = [float(src_loss), float(dst_loss)]
-
                             # Train face style
                             if model.options['true_face_power'] != 0:
                                 _, _D_code_loss = nn.tf_sess.run([model.D_code_train_op, model.D_code_loss], feed_dict={
@@ -194,7 +188,6 @@ def trainerThread (s2c, c2s, e,
                                     model.warped_dst :warped_dst,
                                     model.target_dst :target_dst,
                                     model.target_dstm_all:target_dstm_all})
-
                             # Train GAN
                             if model.options['gan_power'] != 0:
                                 _, D_src_dst_loss = nn.tf_sess.run([model.D_src_dst_train_op, model.D_src_dst_loss], feed_dict={
@@ -208,15 +201,37 @@ def trainerThread (s2c, c2s, e,
                         # Train different parts of the network in parallel
                         # Less accurate gradient, Faster
                         if False:
-                            _G_train_op, _D_code_train_op, _D_src_dst_train_op, src_loss, dst_loss, D_code_loss, D_src_dst_loss = nn.tf_sess.run(
-                                [model.G_train_op, model.D_code_train_op, model.D_src_dst_train_op, model.src_loss, model.dst_loss, model.D_code_loss, model.D_src_dst_loss], feed_dict={
-                                model.warped_src :warped_src,
-                                model.target_src :target_src,
-                                model.target_srcm_all:target_srcm_all,
-                                model.warped_dst :warped_dst,
-                                model.target_dst :target_dst,
-                                model.target_dstm_all:target_dstm_all})
-                            list_loss = [float(src_loss), float(dst_loss), float(D_code_loss), float(D_src_dst_loss)]                            
+                            if model.options['gan_power'] == 0 and model.options['true_face_power'] == 0:
+                                _G_train_op, src_loss, dst_loss = nn.tf_sess.run(
+                                    [model.G_train_op, model.src_loss, model.dst_loss], feed_dict={
+                                    model.warped_src :warped_src,
+                                    model.target_src :target_src,
+                                    model.target_srcm_all:target_srcm_all,
+                                    model.warped_dst :warped_dst,
+                                    model.target_dst :target_dst,
+                                    model.target_dstm_all:target_dstm_all})
+                            elif model.options['gan_power'] != 0:
+                                _G_train_op, _D_src_dst_train_op, src_loss, dst_loss, D_src_dst_loss = nn.tf_sess.run(
+                                    [model.G_train_op, model.D_src_dst_train_op, model.src_loss, model.dst_loss, model.D_src_dst_loss], feed_dict={
+                                    model.warped_src :warped_src,
+                                    model.target_src :target_src,
+                                    model.target_srcm_all:target_srcm_all,
+                                    model.warped_dst :warped_dst,
+                                    model.target_dst :target_dst,
+                                    model.target_dstm_all:target_dstm_all})
+                            elif model.options['true_face_power'] != 0:
+                                _G_train_op, _D_code_train_op, src_loss, dst_loss, D_code_loss = nn.tf_sess.run(
+                                    [model.G_train_op, model.D_code_train_op, model.src_loss, model.dst_loss, model.D_code_loss], feed_dict={
+                                    model.warped_src :warped_src,
+                                    model.target_src :target_src,
+                                    model.target_srcm_all:target_srcm_all,
+                                    model.warped_dst :warped_dst,
+                                    model.target_dst :target_dst,
+                                    model.target_dstm_all:target_dstm_all})                                
+
+                        src_loss = 2.0 if math.isnan(src_loss) else src_loss
+                        dst_loss = 2.0 if math.isnan(dst_loss) else dst_loss
+                        list_loss = [float(src_loss), float(dst_loss)]
 
 
                         model.loss_history.append ( list_loss )
