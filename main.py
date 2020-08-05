@@ -43,6 +43,7 @@ if __name__ == "__main__":
                         jpeg_quality            = arguments.jpeg_quality,
                         cpu_only                = arguments.cpu_only,
                         force_gpu_idxs          = [ int(x) for x in arguments.force_gpu_idxs.split(',') ] if arguments.force_gpu_idxs is not None else None,
+                        stabilize_n                = arguments.stabilize_n,
                       )
 
     p = subparsers.add_parser( "extract", help="Extract the faces from a pictures.")
@@ -60,6 +61,7 @@ if __name__ == "__main__":
     p.add_argument('--manual-window-size', type=int, dest="manual_window_size", default=1368, help="Manual fix window size. Default: 1368.")
     p.add_argument('--cpu-only', action="store_true", dest="cpu_only", default=False, help="Extract on CPU..")
     p.add_argument('--force-gpu-idxs', dest="force_gpu_idxs", default=None, help="Force to choose GPU indexes separated by comma.")
+    p.add_argument('--stabilize-n', type=int, dest="stabilize_n", default=3, help="Number of landmarks estimates to average together to stabilize.")
 
     p.set_defaults (func=process_extract)
 
@@ -107,6 +109,7 @@ if __name__ == "__main__":
     p.add_argument('--restore-faceset-metadata', action="store_true", dest="restore_faceset_metadata", default=False, help="Restore faceset metadata to file. Image filenames must be the same as used with save.")
     p.add_argument('--pack-faceset', action="store_true", dest="pack_faceset", default=False, help="")
     p.add_argument('--unpack-faceset', action="store_true", dest="unpack_faceset", default=False, help="")
+    p.add_argument('--dst-dir', action="store_true", dest="dst_dir", default=False, help="Original dst dir")
 
     p.set_defaults (func=process_util)
 
@@ -160,7 +163,11 @@ if __name__ == "__main__":
                       output_mask_path       = Path(arguments.output_mask_dir),
                       aligned_path           = Path(arguments.aligned_dir) if arguments.aligned_dir is not None else None,
                       force_gpu_idxs         = arguments.force_gpu_idxs,
-                      cpu_only               = arguments.cpu_only)
+                      cpu_only               = arguments.cpu_only,
+                      frame_range            = arguments.frame_range,
+                      cfg_load_path          = Path(arguments.cfg_load_path) if arguments.cfg_load_path is not None else None,
+                      cfg_save_path          = Path(arguments.cfg_save_path) if arguments.cfg_save_path is not None else None
+                      )
 
     p = subparsers.add_parser( "merge", help="Merger")
     p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir", help="Input directory. A directory containing the files you wish to process.")
@@ -172,6 +179,9 @@ if __name__ == "__main__":
     p.add_argument('--force-model-name', dest="force_model_name", default=None, help="Forcing to choose model name from model/ folder.")
     p.add_argument('--cpu-only', action="store_true", dest="cpu_only", default=False, help="Merge on CPU.")
     p.add_argument('--force-gpu-idxs', dest="force_gpu_idxs", default=None, help="Force to choose GPU indexes separated by comma.")
+    p.add_argument('--frame-range', dest="frame_range", default=None, help="Frame range to process. Can be single frame, dash-separated range, or comma-separated list of either")
+    p.add_argument('--cfg-load-path', action=fixPathAction, dest="cfg_load_path", default=None, help="Load a saved configuration for merging with no prompts.")
+    p.add_argument('--cfg-save-path', action=fixPathAction, dest="cfg_save_path", default=None, help="Save a configuration file only for later use.")
     p.set_defaults(func=process_merge)
 
     videoed_parser = subparsers.add_parser( "videoed", help="Video processing.").add_subparsers()

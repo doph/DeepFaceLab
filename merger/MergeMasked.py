@@ -312,7 +312,7 @@ def MergeMaskedFace (predictor_func, predictor_input_shape,
 
     if out_img is None:
         out_img = img_bgr.copy()
-        
+
     return out_img, out_merging_mask_a
 
 
@@ -322,9 +322,11 @@ def MergeMasked (predictor_func,
                  xseg_256_extract_func,
                  cfg,
                  frame_info):
-    img_bgr_uint8 = cv2_imread(frame_info.filepath)
+    img_bgr_uint8 = cv2_imread(frame_info.filepath) # file bitdepth is unexpectedly retained to this point
+    img_type = img_bgr_uint8.dtype
+    img_type_max = np.iinfo(img_type).max if 'int' in img_type.name else 1
     img_bgr_uint8 = imagelib.normalize_channels (img_bgr_uint8, 3)
-    img_bgr = img_bgr_uint8.astype(np.float32) / 255.0
+    img_bgr = img_bgr_uint8.astype(np.float32) / img_type_max
 
     outs = []
     for face_num, img_landmarks in enumerate( frame_info.landmarks_list ):
@@ -346,4 +348,4 @@ def MergeMasked (predictor_func,
 
     final_img = np.concatenate ( [final_img, final_mask], -1)
 
-    return (final_img*255).astype(np.uint8)
+    return (final_img * img_type_max).astype(img_type)

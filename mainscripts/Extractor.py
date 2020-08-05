@@ -51,6 +51,7 @@ class ExtractSubprocessor(Subprocessor):
             self.cpu_only             = client_dict['device_type'] == 'CPU'
             self.final_output_path    = client_dict['final_output_path']
             self.output_debug_path    = client_dict['output_debug_path']
+            self.stabilize_n          = client_dict['stabilize_n']
 
             #transfer and set stdin in order to work code.interact in debug subprocess
             stdin_fd         = client_dict['stdin_fd']
@@ -87,10 +88,18 @@ class ExtractSubprocessor(Subprocessor):
             filepath = data.filepath
             cached_filepath, image = self.cached_image
             if cached_filepath != filepath:
-                image = cv2_imread( filepath )
+                image = cv2_imread( filepath ) # file bitdepth is unexpectedly retained to this point
                 if image is None:
                     self.log_err (f'Failed to open {filepath}, reason: cv2_imread() fail.')
                     return data
+
+                # make bit-depth agnostic
+                image_type = image.dtype
+                image_type_max = np.iinfo(image_type).max if 'int' in image_type.name else 1
+                image = image.astype(np.float32) / image_type_max
+                image = image * 256 # detector seems to expect 8-bit
+                image = image.astype(np.uint8)
+
                 image = imagelib.normalize_channels(image, 3)
                 image = imagelib.cut_odd_image(image)
                 self.cached_image = ( filepath, image )
@@ -113,6 +122,7 @@ class ExtractSubprocessor(Subprocessor):
                                                                 extract_from_dflimg=extract_from_dflimg,
                                                                 landmarks_extractor=self.landmarks_extractor,
                                                                 rects_extractor=self.rects_extractor,
+                                                                stabilize_n=self.stabilize_n,
                                                                 )
 
             if self.type == 'final' or self.type == 'all':
@@ -164,6 +174,7 @@ class ExtractSubprocessor(Subprocessor):
                             extract_from_dflimg,
                             landmarks_extractor,
                             rects_extractor,
+                            stabilize_n,
                             ):
             h, w, ch = image.shape
 
@@ -176,7 +187,28 @@ class ExtractSubprocessor(Subprocessor):
             elif data.rects_rotation == 270:
                 rotated_image = image.swapaxes( 0,1 )[::-1,:,:]
 
-            data.landmarks = landmarks_extractor.extract (rotated_image, data.rects, rects_extractor if (not extract_from_dflimg and data.landmarks_accurate) else None, is_bgr=True)
+            # landmark stability method from Naruniec et al EGSR20
+            stabilize_beta = 0.05
+            landmarks_a = [None] * len(data.rects)
+            for i in range(stabilize_n):
+                rects_p = [None] * len(data.rects)
+                for j, rect in enumerate(data.rects):
+                    rect_w = rect[2] - rect[0]
+                    if i == 0:
+                        perturbation = [0,0]
+                    else:
+                        perturbation = (stabilize_beta * 2 * np.random.rand(2) - stabilize_beta) * rect_w
+                    rect_p = np.add(rect, np.concatenate((perturbation,perturbation)))
+                    rects_p[j] = tuple(rect_p)
+                landmarks_p = landmarks_extractor.extract(rotated_image, rects_p, rects_extractor if (not extract_from_dflimg and data.landmarks_accurate) else None, is_bgr=True)
+                for j, lmrks in enumerate(landmarks_p):
+                    if landmarks_a[j] is None:
+                        landmarks_a[j] = lmrks / stabilize_n
+                    else:
+                        landmarks_a[j] += lmrks / stabilize_n
+            data.landmarks = landmarks_a
+            #data.landmarks = landmarks_extractor.extract (rotated_image, data.rects, rects_extractor if (not extract_from_dflimg and data.landmarks_accurate) else None, is_bgr=True)
+
             if data.rects_rotation != 0:
                 for i, (rect, lmrks) in enumerate(zip(data.rects, data.landmarks)):
                     new_rect, new_lmrks = rect, lmrks
@@ -330,7 +362,7 @@ class ExtractSubprocessor(Subprocessor):
         elif type == 'final':
             return [ (i, 'CPU', 'CPU%d' % (i), 0 ) for i in (range(min(8, multiprocessing.cpu_count())) if not DEBUG else [0]) ]
 
-    def __init__(self, input_data, type, image_size=None, jpeg_quality=None, face_type=None, output_debug_path=None, manual_window_size=0, max_faces_from_image=0, final_output_path=None, device_config=None):
+    def __init__(self, input_data, type, image_size=None, jpeg_quality=None, face_type=None, output_debug_path=None, manual_window_size=0, max_faces_from_image=0, stabilize_n=3, final_output_path=None, device_config=None):
         if type == 'landmarks-manual':
             for x in input_data:
                 x.manual = True
@@ -345,6 +377,7 @@ class ExtractSubprocessor(Subprocessor):
         self.final_output_path = final_output_path
         self.manual_window_size = manual_window_size
         self.max_faces_from_image = max_faces_from_image
+        self.stabilize_n = stabilize_n
         self.result = []
 
         self.devices = ExtractSubprocessor.get_devices_for_config(self.type, device_config)
@@ -395,6 +428,7 @@ class ExtractSubprocessor(Subprocessor):
                      'max_faces_from_image':self.max_faces_from_image,
                      'output_debug_path': self.output_debug_path,
                      'final_output_path': self.final_output_path,
+                     'stabilize_n': self.stabilize_n,
                      'stdin_fd': sys.stdin.fileno() }
 
 
@@ -743,6 +777,7 @@ def main(detector=None,
          jpeg_quality=None,
          cpu_only = False,
          force_gpu_idxs = None,
+         stabilize_n = 3,
          ):
 
     if not input_path.exists():
@@ -849,6 +884,7 @@ def main(detector=None,
                                          face_type,
                                          output_debug_path if output_debug else None,
                                          max_faces_from_image=max_faces_from_image,
+                                         stabilize_n=stabilize_n,
                                          final_output_path=output_path,
                                          device_config=device_config).run()
 
