@@ -50,11 +50,13 @@ pip install -r requirements-cuda-tf1.15.3.txt
 # We recommend setting the optimizer to adam, 
 # and customize the initial learning rate and decay-step depending on the phase of the training job
 
-# To avoid OOM error during training highres + high dim model, 
+# Optional: To avoid OOM error during training highres + high dim model, 
 # remove MatMul from TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST and add it to TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST
-
 export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul
 export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul
+
+# Optional: XLA can sometimes speed up mixed precision training by 20%
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2
 
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --use-amp \
@@ -88,6 +90,7 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 
 * __Please Please use `clipgrad=True` when you use AMP__. Otherwise gradient will explode at some point.
 * To avoid OOM error during training highres + high dim model, remove MatMul from `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST` and add it to `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST` (see the above example)
+* [XLA](https://www.tensorflow.org/xla) is a compiler that can further increase mixed precision performance, as well as float32 performance to a lesser extent. Simply set the `TF_XLA_FLAGS` as shown in the above example. 
 * Two optimizers are offered: `rmsprop` and `adam`. We set default optimizer to `rmsprop` to keep it consistent with DFL. However, we recommend `Adam` optimizer for both AMP and FP32 training because it converges faster. __So the rule of thumb is always use `--api tf1` together with `--opt adam`.__
 * You can customize the initial learning rate `lr` and learning rate decay step `decay-step`. Precisely, the learning rate starts with the value of `lr`, then multiplied by `0.96` for every `decay-step`. __We recommend `lr=0.0001` if you train from scratch, and `lr=0.00001` to continue training at a late stage, or to train a model with GAN.__ `--decay-step 1000` seems to be a reasonable choice for the scale of the tasks.
 * __Reduce learning rate if you see loss increases / stuck at a high value (2.0)__. This is particularly useful for late stage of the training, and for contuning the training of a FP32 model in AMP.
@@ -126,10 +129,10 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 
 __1xQuadroRTX8000 training throughput (images/sec)__
 
-|   | FP32  | AMP |
-|---|---|---|
-| SAEHD_liae_ud_gan_512_512_128_128_22, BS=4 | 0.83  | 1.66  |
-| SAEHD_liae_ud_gan_512_256_128_128_32, BS=8 | 1.05  | 2.07 |
-| SAEHD_liae_ud_512_256_128_128_32, BS=8 | 2.53  | 3.85  |
+|   | FP32  | AMP | AMP + XLA |
+|---|---|---|---|
+| SAEHD_liae_ud_gan_512_512_128_128_22, BS=4 | 0.83  | 1.66  | 2.10  |
+| SAEHD_liae_ud_gan_512_256_128_128_32, BS=8 | 1.05  | 2.07 | 2.42 |
+| SAEHD_liae_ud_512_256_128_128_32, BS=8 | 2.53  | 3.85 | 4.32 |
 
 * Naming convention: `Model_resolution_ae_encoder_decoder_mask`

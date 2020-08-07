@@ -5,7 +5,7 @@ uniform_yaw: False
 pretrain_just_disabled: True
 autobackup_hour: 4
 write_preview_history: True
-target_iter: 14
+target_iter: 0
 random_flip: True
 face_type: wf
 models_opt_on_gpu: True
