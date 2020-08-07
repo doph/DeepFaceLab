@@ -10,9 +10,9 @@ MODEL=SAEHD
 # BS_PER_GPU=128
 # BS_PER_GPU2=256
 
-CONFIG=SAEHD_liae_ud_256_128_64_64_32
-BS_PER_GPU=32
-BS_PER_GPU2=64
+# CONFIG=SAEHD_liae_ud_256_128_64_64_32
+# BS_PER_GPU=32
+# BS_PER_GPU2=64
 
 # CONFIG=SAEHD_liae_ud_512_256_128_128_32
 # BS_PER_GPU=8
@@ -21,12 +21,18 @@ BS_PER_GPU2=64
 # CONFIG=SAEHD_liae_ud_gan_512_256_128_128_32
 # BS_PER_GPU=8
 
+# CONFIG=SAEHD_liae_ud_512_512_128_128_22
+# BS_PER_GPU=4
 
+CONFIG=SAEHD_liae_ud_gan_512_512_128_128_22
+BS_PER_GPU=4
 
 MONITOR_INTERVAL=0.5
 
 GPU_NAME="$(nvidia-smi -i 0 --query-gpu=gpu_name --format=csv,noheader | sed 's/ //g' 2>/dev/null || echo PLACEHOLDER )"
-NUM_GPU=${#GPUS[@]}
+
+IFS=', ' read -r -a gpus <<< "$GPUS"
+NUM_GPU=${#gpus[@]}
 
 run_benchmark() {
     model=$1
@@ -42,16 +48,16 @@ run_benchmark() {
     command_para="train \
     --training-data-src-dir=$SRC_DIR \
     --training-data-dst-dir=$DST_DIR \
-    --no-preview \
     --config-file ${MAIN_DIR}/configs/${config}.yaml \
     --bs-per-gpu ${bs_per_gpu} \
     --force-model-name ${config} \
     --model-dir ${OUTPUT_DIR}/${GPU_NAME}/${config}"_"${setting} \
     --model $model \
-    --force-gpu-idxs 0 \
+    --force-gpu-idxs ${GPUS} \
     --api ${api} \
     --opt ${opt} \
-    --lr ${lr}"
+    --lr ${lr} \
+    --decay-step 200"
 
     if [ "$amp" == "on" ]; then
         command_para="${command_para} --use-amp"
@@ -79,19 +85,19 @@ run_benchmark() {
 
 mkdir -p ${OUTPUT_DIR}/${GPU_NAME}
 
-run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 $BS_PER_GPU
+# run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 $BS_PER_GPU
 
-wait $! 
-run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 $BS_PER_GPU
+# wait $! 
+# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 $BS_PER_GPU
 
-wait $! 
-run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
+# wait $! 
+# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 $BS_PER_GPU
 
-# wait $! 
-# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 $BS_PER_GPU
+wait $! 
+run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 $BS_PER_GPU
 
 # wait $! 
-# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 ${BS_PER_GPU2}
+# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU2}

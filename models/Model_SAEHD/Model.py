@@ -12,6 +12,12 @@ from facelib import FaceType
 from models import ModelBase
 from samplelib import *
 
+# Chuan: Some experiments for interAB layers
+# from PIL import Image
+# ref_src = Image.open("/home/ubuntu/Desktop/LIAE/02789.jpg")
+# ref_src.load()
+# ref_src = np.expand_dims(np.asarray( ref_src, dtype="float32" ) / 255.0, axis=0)
+# ref_src = np.transpose(ref_src, (0, 3, 1, 2))
 
 class SAEHDModel(ModelBase):
 
@@ -649,6 +655,10 @@ class SAEHDModel(ModelBase):
                     gpu_dst_inter_AB_code = self.inter_AB (gpu_dst_code)
                     gpu_dst_code = tf.concat([gpu_dst_inter_B_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
                     gpu_src_dst_code = tf.concat([gpu_dst_inter_AB_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
+
+                    # Chuan: Some experiments for interAB layers
+                    # gpu_src_code = self.encoder (ref_src)
+                    # gpu_src_dst_code = tf.concat([self.inter_AB (gpu_src_code),gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
 
                     gpu_pred_src_dst, gpu_pred_src_dstm = self.decoder(gpu_src_dst_code)
                     _, gpu_pred_dst_dstm = self.decoder(gpu_dst_code)
