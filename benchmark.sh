@@ -25,7 +25,7 @@ MODEL=SAEHD
 # BS_PER_GPU=4
 
 CONFIG=SAEHD_liae_ud_gan_512_512_128_128_22
-BS_PER_GPU=4
+BS_PER_GPU=6
 
 MONITOR_INTERVAL=0.5
 
@@ -33,6 +33,7 @@ GPU_NAME="$(nvidia-smi -i 0 --query-gpu=gpu_name --format=csv,noheader | sed 's/
 
 IFS=', ' read -r -a gpus <<< "$GPUS"
 NUM_GPU=${#gpus[@]}
+
 
 run_benchmark() {
     model=$1
@@ -85,19 +86,19 @@ run_benchmark() {
 
 mkdir -p ${OUTPUT_DIR}/${GPU_NAME}
 
-# run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 $BS_PER_GPU
+# run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 ${BS_PER_GPU}
 
 # wait $! 
-# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 $BS_PER_GPU
+# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
 
 # wait $! 
-# run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 $BS_PER_GPU
+# run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 ${BS_PER_GPU}
 
 wait $! 
-run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 $BS_PER_GPU
+run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 ${BS_PER_GPU}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU2}

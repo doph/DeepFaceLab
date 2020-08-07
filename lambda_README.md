@@ -50,6 +50,12 @@ pip install -r requirements-cuda-tf1.15.3.txt
 # We recommend setting the optimizer to adam, 
 # and customize the initial learning rate and decay-step depending on the phase of the training job
 
+# To avoid OOM error during training highres + high dim model, 
+# remove MatMul from TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST and add it to TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST
+
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul
+
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --use-amp \
 --api tf1 \
@@ -81,9 +87,11 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 ```
 
 * __Please Please use `clipgrad=True` when you use AMP__. Otherwise gradient will explode at some point.
+* To avoid OOM error during training highres + high dim model, remove MatMul from `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST` and add it to `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST` (see the above example)
 * Two optimizers are offered: `rmsprop` and `adam`. We set default optimizer to `rmsprop` to keep it consistent with DFL. However, we recommend `Adam` optimizer for both AMP and FP32 training because it converges faster. __So the rule of thumb is always use `--api tf1` together with `--opt adam`.__
 * You can customize the initial learning rate `lr` and learning rate decay step `decay-step`. Precisely, the learning rate starts with the value of `lr`, then multiplied by `0.96` for every `decay-step`. __We recommend `lr=0.0001` if you train from scratch, and `lr=0.00001` to continue training at a late stage, or to train a model with GAN.__ `--decay-step 1000` seems to be a reasonable choice for the scale of the tasks.
 * __Reduce learning rate if you see loss increases / stuck at a high value (2.0)__. This is particularly useful for late stage of the training, and for contuning the training of a FP32 model in AMP.
+* In practice, AMP achieves higher performance when __batch size and feature dimensions are multiples of 8__. So try to avoid number like `22`, use `16` or `24` instead.
 * There are two types of GANs. `patch` (default) and `unetpatch` (a new DFL implementation added July 2020). You will be asked to choose between one of them after setting the `gan_power`. Words on the street is that `unetpatch` works better, but we haven't thoroughly tested it.
 * User iteraction is the same as the original DFL, including using keyboard to control preview, save model etc. However, we close the preview window once trainig is finished, for the purpose of pipelining multi-stage training.
 * Saved models can be loaded and re-trained by both APIs (`dfl` and `tf1`), and in both precisions (`fp32` and `amp`). 
@@ -120,6 +128,7 @@ __1xQuadroRTX8000 training throughput (images/sec)__
 
 |   | FP32  | AMP |
 |---|---|---|
+| SAEHD_liae_ud_gan_512_512_128_128_22, BS=4 | 0.83  | 1.66  |
 | SAEHD_liae_ud_gan_512_256_128_128_32, BS=8 | 1.05  | 2.07 |
 | SAEHD_liae_ud_512_256_128_128_32, BS=8 | 2.53  | 3.85  |
 
