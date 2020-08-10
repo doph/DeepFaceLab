@@ -94,8 +94,8 @@ mkdir -p ${OUTPUT_DIR}/${GPU_NAME}
 
 # run_benchmark $MODEL $CONFIG dfl-fp32 $GPUS off dfl rmsprop 0.00001 ${BS_PER_GPU}
 
-wait $! 
-run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU}
+# wait $! 
+# run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU2}
@@ -103,8 +103,8 @@ run_benchmark $MODEL $CONFIG dfl-amp $GPUS on dfl rmsprop 0.00001 ${BS_PER_GPU}
 # wait $! 
 # run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 ${BS_PER_GPU}
 
-# wait $! 
-# run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU}
+wait $! 
+run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU2}

@@ -11,8 +11,11 @@ face_type: wf
 models_opt_on_gpu: True
 archi: liae-ud
 ae_dims: 128
+ae_scales: 1
 e_dims: 64
+e_scales: 4
 d_dims: 64
+d_scales: 4
 d_mask_dims: 32
 eyes_prio: False
 lr_dropout: False

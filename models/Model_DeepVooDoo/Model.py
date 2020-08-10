@@ -12,8 +12,6 @@ from facelib import FaceType
 from models import ModelBase
 from samplelib import *
 
-NUM_SCALES=4
-NUM_INTER_LAYERS=3
 
 # Chuan: Some experiments for interAB layers
 # from PIL import Image
@@ -47,8 +45,11 @@ class DeepVooDooModel(ModelBase):
             self.options['models_opt_on_gpu'] = options_list['models_opt_on_gpu']
             self.options['archi'] = options_list['archi']
             self.options['ae_dims'] = options_list['ae_dims']
+            self.options['ae_scales'] = options_list['ae_scales']
             self.options['e_dims'] = options_list['e_dims']
+            self.options['e_scales'] = options_list['e_scales']
             self.options['d_dims'] = options_list['d_dims']
+            self.options['d_scales'] = options_list['d_scales']
             self.options['d_mask_dims'] = options_list['d_mask_dims']
             self.options['eyes_prio'] = options_list['eyes_prio']
             self.options['lr_dropout'] = options_list['lr_dropout']
@@ -94,8 +95,11 @@ class DeepVooDooModel(ModelBase):
             default_archi              = self.options['archi'] = archi
 
             default_ae_dims            = self.options['ae_dims']            = self.load_or_def_option('ae_dims', 256)
+            default_ae_scales          = self.options['ae_scales']          = self.load_or_def_option('ae_scales', 1)
             default_e_dims             = self.options['e_dims']             = self.load_or_def_option('e_dims', 64)
+            default_e_scales           = self.options['e_scales']           = self.load_or_def_option('e_scales', 4)
             default_d_dims             = self.options['d_dims']             = self.options.get('d_dims', None)
+            default_d_scales           = self.options['d_scales']           = self.load_or_def_option('d_scales', 4)
             default_d_mask_dims        = self.options['d_mask_dims']        = self.options.get('d_mask_dims', None)
             default_masked_training    = self.options['masked_training']    = self.load_or_def_option('masked_training', True)
             default_eyes_prio          = self.options['eyes_prio']          = self.load_or_def_option('eyes_prio', False)
@@ -171,13 +175,16 @@ class DeepVooDooModel(ModelBase):
 
             if self.is_first_run():
                 self.options['ae_dims'] = np.clip ( io.input_int("AutoEncoder dimensions", default_ae_dims, add_info="32-1024", help_message="All face information will packed to AE dims. If amount of AE dims are not enough, then for example closed eyes will not be recognized. More dims are better, but require more VRAM. You can fine-tune model size to fit your GPU." ), 32, 1024 )
+                self.options['ae_scales'] = np.clip ( io.input_int("AutoEncoder Scales", default_ae_scales, add_info="1-4", help_message="Number of Dense Layers in the inter blocks." ), 1, 4 )
 
                 e_dims = np.clip ( io.input_int("Encoder dimensions", default_e_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
                 self.options['e_dims'] = e_dims + e_dims % 2
+                self.options['e_scales'] = np.clip ( io.input_int("Encoder Scales", default_e_scales, add_info="1-8", help_message="Number of Layers in the Encoder." ), 1, 8 )
 
                 d_dims = np.clip ( io.input_int("Decoder dimensions", default_d_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
                 self.options['d_dims'] = d_dims + d_dims % 2
-
+                self.options['d_scales'] = np.clip ( io.input_int("Decoder Scales", default_d_scales, add_info="1-8", help_message="Number of Layers in the Decoder." ), 1, 8 )
+                
                 d_mask_dims = np.clip ( io.input_int("Decoder mask dimensions", default_d_mask_dims, add_info="16-256", help_message="Typical mask dimensions = decoder dimensions / 3. If you manually cut out obstacles from the dst mask, you can increase this parameter to achieve better quality." ), 16, 256 )
                 self.options['d_mask_dims'] = d_mask_dims + d_mask_dims % 2
 
@@ -282,14 +289,14 @@ class DeepVooDooModel(ModelBase):
 
         with tf.device (models_opt_device):
             if 'df' in archi_type:
-                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=NUM_SCALES, name='encoder')
+                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=self.options['e_scales'], name='encoder')
                 encoder_out_ch = self.encoder.compute_output_channels ( (nn.floatx, bgr_shape))
 
-                self.inter = model_archi.Inter (in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims, num_layers=NUM_INTER_LAYERS, name='inter')
+                self.inter = model_archi.Inter (in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims, num_layers=self.options['ae_scales'], name='inter')
                 inter_out_ch = self.inter.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
 
-                self.decoder_src = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=NUM_SCALES, name='decoder_src')
-                self.decoder_dst = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=NUM_SCALES, name='decoder_dst')
+                self.decoder_src = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder_src')
+                self.decoder_dst = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder_dst')
 
                 self.model_filename_list += [ [self.encoder,     'encoder.npy'    ],
                                               [self.inter,       'inter.npy'      ],
@@ -302,16 +309,16 @@ class DeepVooDooModel(ModelBase):
                         self.model_filename_list += [ [self.code_discriminator, 'code_discriminator.npy'] ]
 
             elif 'liae' in archi_type:
-                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=NUM_SCALES, name='encoder')
+                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=self.options['e_scales'], name='encoder')
                 encoder_out_ch = self.encoder.compute_output_channels ( (nn.floatx, bgr_shape))
 
-                self.inter_AB = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=NUM_INTER_LAYERS, name='inter_AB')
-                self.inter_B  = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=NUM_INTER_LAYERS, name='inter_B')
+                self.inter_AB = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=self.options['ae_scales'], name='inter_AB')
+                self.inter_B  = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=self.options['ae_scales'], name='inter_B')
 
                 inter_AB_out_ch = self.inter_AB.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
                 inter_B_out_ch = self.inter_B.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
                 inters_out_ch = inter_AB_out_ch+inter_B_out_ch
-                self.decoder = model_archi.Decoder(in_ch=inters_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=NUM_SCALES, name='decoder')
+                self.decoder = model_archi.Decoder(in_ch=inters_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder')
 
                 self.model_filename_list += [ [self.encoder,  'encoder.npy'],
                                               [self.inter_AB, 'inter_AB.npy'],
