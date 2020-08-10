@@ -4,7 +4,11 @@ MAIN_DIR=~/DeepFaceLab_dev
 SRC_DIR=~/data/dfl/Snowden_face_small
 DST_DIR=~/data/dfl/Gordon_face_small
 GPUS=0
-MODEL=SAEHD
+MODEL=DeepVooDoo
+
+CONFIG=DeepVooDoo_liae_ud_512_128_64_64_32
+BS_PER_GPU=32
+
 
 # CONFIG=SAEHD_liae_ud_128_128_64_64_64
 # BS_PER_GPU=128
@@ -14,8 +18,8 @@ MODEL=SAEHD
 # BS_PER_GPU=32
 # BS_PER_GPU2=64
 
-CONFIG=SAEHD_liae_ud_512_256_128_128_32
-BS_PER_GPU=8
+# CONFIG=SAEHD_liae_ud_512_256_128_128_32
+# BS_PER_GPU=8
 # BS_PER_GPU2=16
 
 # CONFIG=SAEHD_liae_ud_gan_512_256_128_128_32
@@ -98,7 +102,7 @@ mkdir -p ${OUTPUT_DIR}/${GPU_NAME}
 # run_benchmark $MODEL $CONFIG tf1-fp32 $GPUS off tf1 adam 0.00001 ${BS_PER_GPU}
 
 wait $! 
-run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.00001 ${BS_PER_GPU}
+run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU}
 
 # wait $! 
 # run_benchmark $MODEL $CONFIG tf1-amp $GPUS on tf1 adam 0.0001 ${BS_PER_GPU2}
