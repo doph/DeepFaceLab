@@ -176,7 +176,7 @@ class DeepVooDooModel(ModelBase):
 
                 d_dims = np.clip ( io.input_int("Decoder dimensions", default_d_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
                 self.options['d_dims'] = d_dims + d_dims % 2
-                self.options['d_scales'] = np.clip ( io.input_int("Decoder Scales", default_d_scales, add_info="1-8", help_message="Number of Layers in the Decoder." ), 1, 8 )
+                self.options['d_scales'] = self.options['e_scales']
 
                 d_mask_dims = np.clip ( io.input_int("Decoder mask dimensions", default_d_mask_dims, add_info="16-256", help_message="Typical mask dimensions = decoder dimensions / 3. If you manually cut out obstacles from the dst mask, you can increase this parameter to achieve better quality." ), 16, 256 )
                 self.options['d_mask_dims'] = d_mask_dims + d_mask_dims % 2

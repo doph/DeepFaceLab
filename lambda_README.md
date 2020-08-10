@@ -124,7 +124,10 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 ### DeepVooDoo Model
 
 We host experimental models in `models/Model_DeepVooDoo`. The current version is the same as the `SAEHD`, but offers the ability to customize the number of layers for the encoder, decoder, and inter blocks. 
-* Simply pass `DeepVooDoo` as the model option to your `main.py` script, and you will be asked to set these hyper-parameters during the interacitve model configuration stage. 
+* Simply pass `DeepVooDoo` as the model option to your `main.py` script, and you will be asked to set these hyper-parameters (`ae_scales`, `e_scales`) during the interacitve model configuration stage. 
+* The scales for encoder and decoder are always kept the same so we only ask the users to set one of them (`e_scales`). By default `ae_scales = 1`, and `e_scales=4`. 
+* Make sure `2^e_scales` are no larger than the image resolution. `ae_scales` does not have this problem as it is used for Dense Layers.
+* `leaky_relu` layer is added between the Dense layers of the inter blocks. This hasn't been thouroughly tested but intuitivly makes sense, as it increases the non-linearly of the inter blocks so hopefully learns more complicated mappings.
 * The settings will be printed in the model summary.
 * Supported by both the `dfl` and the `tf1` training API, in both `FP32` and `AMP`
 
