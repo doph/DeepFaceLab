@@ -121,6 +121,59 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 * Although you can use AMP with the DFL API, this is not recommended. The reason is that dynamic loss scaling is not supported by DFL due to its in-house implememation of optimizer.
 * Learning rate decay is currently not supported.
 
+### DeepVooDoo Model
+
+We host experimental models in `models/Model_DeepVooDoo`. The current version is the same as the `SAEHD`, but offers the ability to customize the number of layers for the encoder, decoder, and inter blocks. 
+* Simply pass `DeepVooDoo` as the model option to your `main.py` script, and you will be asked to set these hyper-parameters during the interacitve model configuration stage. 
+* The settings will be printed in the model summary.
+* Supported by both the `dfl` and the `tf1` training API, in both `FP32` and `AMP`
+
+Example: 
+```
+
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2
+
+# AMP + TF1 API
+python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
+--use-amp \
+--api tf1 \
+--opt adam \
+--lr 0.0001 \
+--decay-step 1000 \
+--training-data-src-dir=your_src_dir \
+--training-data-dst-dir=your_dst_dir \
+--model-dir your_model_dir \
+--model DeepVooDoo \
+--force-gpu-idxs 0 \
+--force-model-name your_model_name
+
+
+# FP32 + TF1 API
+# Simply drop `use-amp` and only pass `--api tf1`
+python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
+--api tf1 \
+--opt adam \
+--lr 0.0001 \
+--decay-step 1000 \
+--training-data-src-dir=your_src_dir \
+--training-data-dst-dir=your_dst_dir \
+--model-dir your_model_dir \
+--model DeepVooDoo \
+--force-gpu-idxs 0 \
+--force-model-name your_model_name
+
+# FP32 + DFL API
+python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
+--lr 0.0001 \
+--training-data-src-dir=your_src_dir \
+--training-data-dst-dir=your_dst_dir \
+--model-dir your_model_dir \
+--model DeepVooDoo \
+--force-gpu-idxs 0 \
+--force-model-name your_model_name
+``` 
 
 
 ### Performance

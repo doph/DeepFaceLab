@@ -11,5 +11,9 @@
 !mainscripts/
 !models/
 !models/Model_SAEHD/
+!models/Model_DeepVooDoo/
 !configs/
 !configs/**
+!core/
+!core/leras/
+!core/leras/archis
