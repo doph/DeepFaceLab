@@ -172,25 +172,25 @@ def trainerThread (s2c, c2s, e,
                         # Train different parts of the network in sequence
                         # More accurate gradient, Slower
                         if True:
-                            # _, src_loss, dst_loss, learning_rate = nn.tf_sess.run([model.G_train_op, model.src_loss, model.dst_loss, model.learning_rate], feed_dict={
-                            #     model.warped_src :warped_src,
-                            #     model.target_src :target_src,
-                            #     model.target_srcm_all:target_srcm_all,
-                            #     model.warped_dst :warped_dst,
-                            #     model.target_dst :target_dst,
-                            #     model.target_dstm_all:target_dstm_all})
-                            _, src_loss, dst_loss, learning_rate, \
-                            gpu_src_code, gpu_src_inter_AB_code, gpu_dst_inter_B_code, \
-                            gpu_pred_src_src, gpu_pred_src_srcm = nn.tf_sess.run(
-                                [model.G_train_op, model.src_loss, model.dst_loss, model.learning_rate,
-                                 model.gpu_src_code, model.gpu_src_inter_AB_code, model.gpu_dst_inter_B_code,
-                                 model.gpu_pred_src_src, model.gpu_pred_src_srcm], feed_dict={
+                            _, src_loss, dst_loss, learning_rate = nn.tf_sess.run([model.G_train_op, model.src_loss, model.dst_loss, model.learning_rate], feed_dict={
                                 model.warped_src :warped_src,
                                 model.target_src :target_src,
                                 model.target_srcm_all:target_srcm_all,
                                 model.warped_dst :warped_dst,
                                 model.target_dst :target_dst,
                                 model.target_dstm_all:target_dstm_all})
+                            # _, src_loss, dst_loss, learning_rate, \
+                            # gpu_src_code, gpu_src_inter_AB_code, gpu_dst_inter_B_code, \
+                            # gpu_pred_src_src, gpu_pred_src_srcm = nn.tf_sess.run(
+                            #     [model.G_train_op, model.src_loss, model.dst_loss, model.learning_rate,
+                            #      model.gpu_src_code, model.gpu_src_inter_AB_code, model.gpu_dst_inter_B_code,
+                            #      model.gpu_pred_src_src, model.gpu_pred_src_srcm], feed_dict={
+                            #     model.warped_src :warped_src,
+                            #     model.target_src :target_src,
+                            #     model.target_srcm_all:target_srcm_all,
+                            #     model.warped_dst :warped_dst,
+                            #     model.target_dst :target_dst,
+                            #     model.target_dstm_all:target_dstm_all})
 
                             # print(gpu_src_code.shape)
                             # print(gpu_src_inter_AB_code.shape)
