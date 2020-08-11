@@ -777,7 +777,7 @@ def main(detector=None,
          jpeg_quality=None,
          cpu_only = False,
          force_gpu_idxs = None,
-         stabilize_n = 3,
+         stabilize_n = 5,
          ):
 
     if not input_path.exists():

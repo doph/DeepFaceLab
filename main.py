@@ -43,7 +43,7 @@ if __name__ == "__main__":
                         jpeg_quality            = arguments.jpeg_quality,
                         cpu_only                = arguments.cpu_only,
                         force_gpu_idxs          = [ int(x) for x in arguments.force_gpu_idxs.split(',') ] if arguments.force_gpu_idxs is not None else None,
-                        stabilize_n                = arguments.stabilize_n,
+                        stabilize_n             = arguments.stabilize_n,
                       )
 
     p = subparsers.add_parser( "extract", help="Extract the faces from a pictures.")
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     p.add_argument('--manual-window-size', type=int, dest="manual_window_size", default=1368, help="Manual fix window size. Default: 1368.")
     p.add_argument('--cpu-only', action="store_true", dest="cpu_only", default=False, help="Extract on CPU..")
     p.add_argument('--force-gpu-idxs', dest="force_gpu_idxs", default=None, help="Force to choose GPU indexes separated by comma.")
-    p.add_argument('--stabilize-n', type=int, dest="stabilize_n", default=3, help="Number of landmarks estimates to average together to stabilize.")
+    p.add_argument('--stabilize-n', type=int, dest="stabilize_n", default=5, help="Number of landmarks estimates to average together to stabilize.")
 
     p.set_defaults (func=process_extract)
 
