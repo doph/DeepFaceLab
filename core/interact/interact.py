@@ -13,7 +13,7 @@ from tqdm import tqdm
 from core import stdex
 
 try:
-    import IPython #if success we are in colab
+    import IPython #if success we are in colab #TODO: this is a bad test for colab
     from IPython.display import display, clear_output
     import PIL
     import matplotlib.pyplot as plt
