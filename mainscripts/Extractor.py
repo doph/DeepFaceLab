@@ -97,8 +97,7 @@ class ExtractSubprocessor(Subprocessor):
                 image_type = image.dtype
                 image_type_max = np.iinfo(image_type).max if 'int' in image_type.name else 1
                 image = image.astype(np.float32) / image_type_max
-                image = image * 256 # detector seems to expect 8-bit
-                image = np.clip(image, 0, 255)
+                image = image * 255 # detector seems to expect 8-bit
                 image = image.astype(np.uint8)
 
                 image = imagelib.normalize_channels(image, 3)
@@ -459,8 +458,7 @@ class ExtractSubprocessor(Subprocessor):
                         image_type = image.dtype
                         image_type_max = np.iinfo(image_type).max if 'int' in image_type.name else 1
                         image = image.astype(np.float32) / image_type_max
-                        image = image * 256  # detector seems to expect 8-bit
-                        image = np.clip(image, 0, 255)
+                        image = image * 255  # detector seems to expect 8-bit
                         image = image.astype(np.uint8)
                         self.original_image = imagelib.normalize_channels( image, 3 )
 
