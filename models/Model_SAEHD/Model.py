@@ -210,8 +210,8 @@ class SAEHDModel(ModelBase):
 
                 self.options['pretrain'] = io.input_bool ("Enable pretraining mode", default_pretrain, help_message="Pretrain the model with large amount of various faces. After that, model can be used to train the fakes more quickly.")
 
-            if self.options['pretrain'] and self.get_pretraining_data_path() is None:
-                raise Exception("pretraining_data_path is not defined")
+            # if self.options['pretrain'] and self.get_pretraining_data_path() is None:
+            #     raise Exception("pretraining_data_path is not defined")
 
             self.pretrain_just_disabled = (default_pretrain == True and self.options['pretrain'] == False)
 
@@ -656,9 +656,13 @@ class SAEHDModel(ModelBase):
                     gpu_dst_code = tf.concat([gpu_dst_inter_B_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
                     gpu_src_dst_code = tf.concat([gpu_dst_inter_AB_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
 
-                    # Chuan: Some experiments for interAB layers
+                    # # Chuan: Some experiments for interAB layers
                     # gpu_src_code = self.encoder (ref_src)
                     # gpu_src_dst_code = tf.concat([self.inter_AB (gpu_src_code),gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
+
+                    # # Chuan: Reconstruction test for dst images
+                    # gpu_pred_src_dst, gpu_pred_src_dstm = self.decoder(gpu_dst_code)
+                    # _, gpu_pred_dst_dstm = self.decoder(gpu_dst_code)
 
                     gpu_pred_src_dst, gpu_pred_src_dstm = self.decoder(gpu_src_dst_code)
                     _, gpu_pred_dst_dstm = self.decoder(gpu_dst_code)

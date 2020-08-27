@@ -158,13 +158,13 @@ class DeepVooDooArchi(nn.ArchiBase):
                         last_ch_m = self.upms[-1].get_out_ch()
 
                     self.out_conv  = nn.Conv2D( d_ch*2, 3, kernel_size=1, padding='SAME')
-                    
+
                     if 'd' in opts:
-                        self.out_convs = []
-                        for i in reversed(range(1, n_upscales)):
-                            self.out_convs.append(nn.Conv2D( d_ch*2, 3, kernel_size=kernel_size, padding='SAME'))
-                        self.upscalem3 = Upscale(d_mask_ch*2, d_mask_ch*1, kernel_size=kernel_size)
-                        self.out_convm = nn.Conv2D( d_mask_ch*1, 1, kernel_size=1, padding='SAME')
+                        self.out_conv1  = nn.Conv2D( d_ch*2, 3, kernel_size=3, padding='SAME')
+                        self.out_conv2  = nn.Conv2D( d_ch*2, 3, kernel_size=3, padding='SAME')
+                        self.out_conv3  = nn.Conv2D( d_ch*2, 3, kernel_size=3, padding='SAME')
+                        self.upscalem3 = Upscale(d_mask_ch*2, d_mask_ch*1, kernel_size=3)
+                        self.out_convm = nn.Conv2D( d_mask_ch*1, 1, kernel_size=1, padding='SAME')                        
                     else:
                         self.out_convm = nn.Conv2D( d_mask_ch*2, 1, kernel_size=1, padding='SAME')
 
@@ -176,28 +176,39 @@ class DeepVooDooArchi(nn.ArchiBase):
                     x = z
 
                     if 'd' in opts:
-
-                        self.xs = []
-                        self.xs.append(nn.upsample2d(tf.nn.sigmoid(self.out_conv(x))))
-                        for out_conv in self.out_convs:
-                            self.xs.append(nn.upsample2d(tf.nn.sigmoid(out_conv(x))))
+                        x0 = tf.nn.sigmoid(self.out_conv(x))
+                        x0 = nn.upsample2d(x0)
+                        x1 = tf.nn.sigmoid(self.out_conv1(x))
+                        x1 = nn.upsample2d(x1)
+                        x2 = tf.nn.sigmoid(self.out_conv2(x))
+                        x2 = nn.upsample2d(x2)
+                        x3 = tf.nn.sigmoid(self.out_conv3(x))
+                        x3 = nn.upsample2d(x3)
 
                         if nn.data_format == "NHWC":
                             tile_cfg = ( 1, resolution // 2, resolution //2, 1)
                         else:
                             tile_cfg = ( 1, 1, resolution // 2, resolution //2 )
 
-                        self.zs = []
-                        for i in range(len(self.xs)):
-                            z_cur =  tf.concat ( ( tf.concat ( (  tf.ones ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ),
-                                                tf.concat ( ( tf.zeros ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ) ), axis=nn.conv2d_spatial_axes[0] )
-                            self.zs.append(tf.tile ( z_cur, tile_cfg ))                       
+                        z0 =  tf.concat ( ( tf.concat ( (  tf.ones ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ),
+                                            tf.concat ( ( tf.zeros ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ) ), axis=nn.conv2d_spatial_axes[0] )
 
-                        for i, (xx, zz) in enumerate(zip(self.xs, self.zs)):
-                            if i == 0:
-                                x = xx * zz
-                            else:
-                                x += xx * zz
+                        z0 = tf.tile ( z0, tile_cfg )
+
+                        z1 =  tf.concat ( ( tf.concat ( ( tf.zeros ( (1,1,1,1) ), tf.ones ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ),
+                                            tf.concat ( ( tf.zeros ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ) ), axis=nn.conv2d_spatial_axes[0] )
+                        z1 = tf.tile ( z1, tile_cfg )
+
+                        z2 =  tf.concat ( ( tf.concat ( (  tf.zeros ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ),
+                                            tf.concat ( (  tf.ones ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ) ), axis=nn.conv2d_spatial_axes[0] )
+                        z2 = tf.tile ( z2, tile_cfg )
+
+                        z3 =  tf.concat ( ( tf.concat ( (  tf.zeros ( (1,1,1,1) ), tf.zeros ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ),
+                                            tf.concat ( (  tf.zeros ( (1,1,1,1) ), tf.ones ( (1,1,1,1) ) ), axis=nn.conv2d_spatial_axes[1] ) ), axis=nn.conv2d_spatial_axes[0] )
+                        z3 = tf.tile ( z3, tile_cfg )
+
+                        x = x0*z0 + x1*z1 + x2*z2 + x3*z3
+
                     else:
                         x = tf.nn.sigmoid(self.out_conv(x))
 
