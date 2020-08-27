@@ -210,8 +210,8 @@ class SAEHDModel(ModelBase):
 
                 self.options['pretrain'] = io.input_bool ("Enable pretraining mode", default_pretrain, help_message="Pretrain the model with large amount of various faces. After that, model can be used to train the fakes more quickly.")
 
-            # if self.options['pretrain'] and self.get_pretraining_data_path() is None:
-            #     raise Exception("pretraining_data_path is not defined")
+            if self.options['pretrain'] and self.get_pretraining_data_path() is None:
+                raise Exception("pretraining_data_path is not defined")
 
             self.pretrain_just_disabled = (default_pretrain == True and self.options['pretrain'] == False)
 
