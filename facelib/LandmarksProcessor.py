@@ -211,6 +211,7 @@ FaceType_to_padding_remove_align = {
     FaceType.FULL: (0.2109375, False),
     FaceType.FULL_NO_ALIGN: (0.2109375, True),
     FaceType.WHOLE_FACE: (0.40, False),
+    FaceType.BIG_FACE: (0.50, False),
     FaceType.HEAD: (0.70, False),
     FaceType.HEAD_NO_ALIGN: (0.70, True),
 }
@@ -300,6 +301,13 @@ def get_transform_mat (image_landmarks, output_size, face_type, scale=1.0):
         vec_len = npla.norm(vec)
         vec /= vec_len
         g_c += vec*vec_len*0.07
+
+    elif face_type == FaceType.BIG_FACE:
+        # adjust vertical offset for BIG_FACE, 20% below in order to cover more hair
+        vec = (g_p[0]-g_p[3]).astype(np.float32)
+        vec_len = npla.norm(vec)
+        vec /= vec_len
+        g_c += vec*vec_len*0.2
 
     elif face_type == FaceType.HEAD:
         mat = umeyama( np.concatenate ( [ image_landmarks[17:49] , image_landmarks[54:55] ] ) , landmarks_2D_new, True)[0:2]

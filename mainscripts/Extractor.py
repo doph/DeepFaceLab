@@ -829,9 +829,11 @@ def main(detector=None,
                     if not cpu_only else nn.DeviceConfig.CPU()
 
     if face_type is None:
-        face_type = io.input_str ("Face type", 'wf', ['f','wf','head'], help_message="Full face / whole face / head. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
-        face_type = {'f'  : FaceType.FULL,
+        face_type = io.input_str ("Face type", 'wf', ['mf','f','wf','bf','head'], help_message="Mid full / Full face / whole face / big face / head. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
+        face_type = {'mf'  : FaceType.MID_FULL,
+                     'f': FaceType.FULL,
                      'wf' : FaceType.WHOLE_FACE,
+                     'bf': FaceType.BIG_FACE,
                      'head' : FaceType.HEAD}[face_type]
 
     if max_faces_from_image is None:

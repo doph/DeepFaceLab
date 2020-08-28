@@ -172,6 +172,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                           'mf' : FaceType.MID_FULL,
                           'f'  : FaceType.FULL,
                           'wf' : FaceType.WHOLE_FACE,
+                          'bf': FaceType.BIG_FACE,
                           'head' : FaceType.HEAD}[ self.options['face_type'] ]
 
         eyes_prio = self.options['eyes_prio']
