@@ -382,7 +382,7 @@ class DeepVooDooModel(ModelBase):
                 self.src_dst_opt = self.optimizer(learning_rate=self.learning_rate)
 
                 if self.use_amp:
-                    src_dst_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=4.)
+                    src_dst_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=1.)
                     self.src_dst_opt = tf.train.experimental.enable_mixed_precision_graph_rewrite(self.src_dst_opt, loss_scale=src_dst_loss_scale)
                     # pass
 
@@ -390,7 +390,7 @@ class DeepVooDooModel(ModelBase):
                     self.D_code_trainable_weights = self.code_discriminator.get_weights()
                     self.D_code_opt = self.optimizer(learning_rate=self.learning_rate)
                     if self.use_amp:
-                        D_code_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=4.)
+                        D_code_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=1.)
                         self.D_code_opt = tf.train.experimental.enable_mixed_precision_graph_rewrite(self.D_code_opt, loss_scale=D_code_loss_scale)
                         # pass
 
@@ -405,7 +405,7 @@ class DeepVooDooModel(ModelBase):
                         print('GAN type {} is invalid'.format(self.options['gan_type']))
                         exit(0)                  
                     if self.use_amp:
-                        D_src_dst_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=4.)
+                        D_src_dst_loss_scale = tf.train.experimental.DynamicLossScale(initial_loss_scale=2**10, increment_period=1000, multiplier=1.)
                         self.D_src_dst_opt = tf.train.experimental.enable_mixed_precision_graph_rewrite(self.D_src_dst_opt, loss_scale=D_src_dst_loss_scale)                        
 
         if self.is_training:
