@@ -118,6 +118,7 @@ if __name__ == '__main__':
     ret = ExtractSubprocessor(data,
                               'final',
                               image_size,
+                              90,
                               face_type,
                               output_debug_path=debug_dir,
                               final_output_path=output_path,
