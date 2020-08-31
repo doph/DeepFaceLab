@@ -27,7 +27,7 @@ class XSegModel(ModelBase):
         default_face_type          = self.options['face_type']          = self.load_or_def_option('face_type', 'wf')
         
         if self.is_first_run():
-            self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','head'], help_message="Half / mid face / full face / whole face / head. Choose the same as your deepfake model.").lower()
+            self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','bf','head'], help_message="Half / mid face / full face / whole face / head. Choose the same as your deepfake model.").lower()
 
         if self.is_first_run() or ask_override:
             self.ask_batch_size(4, range=[2,16])           
@@ -49,6 +49,7 @@ class XSegModel(ModelBase):
                           'mf' : FaceType.MID_FULL,
                           'f'  : FaceType.FULL,
                           'wf' : FaceType.WHOLE_FACE,
+                          'bf': FaceType.BIG_FACE,
                           'head' : FaceType.HEAD}[ self.options['face_type'] ]
         
         place_model_on_cpu = len(devices) == 0
