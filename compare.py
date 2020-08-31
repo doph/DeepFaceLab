@@ -3,17 +3,23 @@ import numpy as np
 
 from PIL import Image
 
-POST_FIX = 'ABAB'
+OUTPUT_PATH = '/home/ubuntu/output_merge_test'
+PRE_FIX = 'dst_dst'
 NUM_IMAEG = 30
 DIM = 512
 GAP = 16
 
 list_folders = ['/media/ubuntu/Data/unpacked_WholeFace512x512_Cleaned/test',
-                '/home/ubuntu/DeepFaceLab_dev/output_video_FP32_rmsprop_17k_'+POST_FIX,
-                '/home/ubuntu/DeepFaceLab_dev/output_video_AMP_rmsprop_17k_'+POST_FIX,
-                '/home/ubuntu/DeepFaceLab_dev/output_video_AMP_rmsprop_30k_'+POST_FIX,
-                '/home/ubuntu/DeepFaceLab_dev/output_video_AMP_adam_17k_'+POST_FIX,
-                '/home/ubuntu/DeepFaceLab_dev/output_video_AMP_adam_30k_'+POST_FIX                
+                OUTPUT_PATH + '/' + PRE_FIX + '_FP32_local_59k',
+                OUTPUT_PATH + '/' + PRE_FIX + '_FP32_local_64k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_rmsprop_62k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_rmsprop_finetune_63k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_rmsprop_102k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_rmsprop_finetune_105k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_adam_59k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_adam_finetune_60k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_adam_107k',
+                OUTPUT_PATH + '/' + PRE_FIX +'_AMP_adam_finetune_110k'
                 ]
 
 list_formats = ['.jpg',
@@ -22,6 +28,11 @@ list_formats = ['.jpg',
                 '.png',
                 '.png',
                 '.png',
+                '.png',
+                '.png',
+                '.png',
+                '.png',
+                '.png',                                
                 '.png'                
                 ]
 
@@ -40,4 +51,4 @@ for i in range(NUM_IMAEG):
         output[(DIM + GAP) * i:(DIM + GAP) * i + DIM, (DIM + GAP) * j:(DIM + GAP) * j + DIM, :] = img
 
 img_out = Image.fromarray(output.astype(np.uint8))
-img_out = img_out.save("pretrain_compare_" + POST_FIX + ".png") 
+img_out = img_out.save(OUTPUT_PATH + "/pretrain_compare_" + PRE_FIX + ".png") 

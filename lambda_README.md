@@ -47,23 +47,18 @@ pip install -r requirements-cuda-tf1.15.3.txt
 ```
 # AMP + TF1 API
 # Simply pass both `use-amp` and `--api tf1`
-# We recommend setting the optimizer to adam, 
-# and customize the initial learning rate and decay-step depending on the phase of the training job
-
-# Optional: To avoid OOM error during training highres + high dim model, 
+# Recommended: To avoid OOM error during training highres + high dim model, 
 # remove MatMul from TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST and add it to TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST
-export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul
-export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul
+# Recommended: XLA can sometimes speed up mixed precision training by 20%
 
-# Optional: XLA can sometimes speed up mixed precision training by 20%
-export TF_XLA_FLAGS=--tf_xla_auto_jit=2
-
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul && \
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul && \
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2 && \
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --use-amp \
 --api tf1 \
 --opt adam \
---lr 0.0001 \
---decay-step 1000 \
+--lr 1e-05 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
@@ -75,11 +70,13 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 # FP32 + TF1 API
 # Simply drop `use-amp` and only pass `--api tf1`
 
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul && \
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul && \
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2 && \
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --api tf1 \
 --opt adam \
---lr 0.0001 \
---decay-step 1000 \
+--lr 1e-05 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
@@ -89,12 +86,12 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 ```
 
 * __Please Please use `clipgrad=True` when you use AMP__. Otherwise gradient will explode at some point.
+* In practice, AMP achieves higher performance when __batch size and feature dimensions are multiples of 8__. So try to avoid number like `22`, use `16` or `24` instead.
 * To avoid OOM error during training highres + high dim model, remove MatMul from `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST` and add it to `TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST` (see the above example)
 * [XLA](https://www.tensorflow.org/xla) is a compiler that can further increase mixed precision performance, as well as float32 performance to a lesser extent. Simply set the `TF_XLA_FLAGS` as shown in the above example. 
-* Two optimizers are offered: `rmsprop` and `adam`. We set default optimizer to `rmsprop` to keep it consistent with DFL. However, we recommend `Adam` optimizer for both AMP and FP32 training because it converges faster. __So the rule of thumb is always use `--api tf1` together with `--opt adam`.__
-* You can customize the initial learning rate `lr` and learning rate decay step `decay-step`. Precisely, the learning rate starts with the value of `lr`, then multiplied by `0.96` for every `decay-step`. __We recommend `lr=0.0001` if you train from scratch, and `lr=0.00001` to continue training at a late stage, or to train a model with GAN.__ `--decay-step 1000` seems to be a reasonable choice for the scale of the tasks.
+* Two optimizers are offered: `rmsprop` and `adam`. We set default optimizer to `rmsprop` to keep it consistent with DFL. However, we also offer `Adam` optimizer because it may converge faster.
+* You can customize the initial learning rate `lr`. __We recommend `lr=1e-05` for adam optimizer, or `lr=5e-05`  for rmsprop optimizer.__
 * __Reduce learning rate if you see loss increases / stuck at a high value (2.0)__. This is particularly useful for late stage of the training, and for contuning the training of a FP32 model in AMP.
-* In practice, AMP achieves higher performance when __batch size and feature dimensions are multiples of 8__. So try to avoid number like `22`, use `16` or `24` instead.
 * There are two types of GANs. `patch` (default) and `unetpatch` (a new DFL implementation added July 2020). You will be asked to choose between one of them after setting the `gan_power`. Words on the street is that `unetpatch` works better, but we haven't thoroughly tested it.
 * User iteraction is the same as the original DFL, including using keyboard to control preview, save model etc. However, we close the preview window once trainig is finished, for the purpose of pipelining multi-stage training.
 * Saved models can be loaded and re-trained by both APIs (`dfl` and `tf1`), and in both precisions (`fp32` and `amp`). 
@@ -107,7 +104,6 @@ To use the original DFL training API in FP32, simply do not pass `--api` so the 
 
 ```
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
---lr 0.0001 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
@@ -119,7 +115,7 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 * Only `rmsprop` optimizer is supported under the DFL training.
 * The starting learning rate is configurable. To do so simply pass `--lr` to the command.
 * Although you can use AMP with the DFL API, this is not recommended. The reason is that dynamic loss scaling is not supported by DFL due to its in-house implememation of optimizer.
-* Learning rate decay is currently not supported.
+
 
 ### DeepVooDoo Model
 
@@ -131,20 +127,18 @@ We host experimental models in `models/Model_DeepVooDoo`. The current version is
 * The settings will be printed in the model summary.
 * Supported by both the `dfl` and the `tf1` training API, in both `FP32` and `AMP`
 
-Example: 
+Example:
+
 ```
-
-export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul
-export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul
-export TF_XLA_FLAGS=--tf_xla_auto_jit=2
-
 # AMP + TF1 API
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul && \
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul && \
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2 && \
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --use-amp \
 --api tf1 \
 --opt adam \
---lr 0.0001 \
---decay-step 1000 \
+--lr 1e-05 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
@@ -155,11 +149,13 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 
 # FP32 + TF1 API
 # Simply drop `use-amp` and only pass `--api tf1`
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_WHITELIST_REMOVE=MatMul && \
+export TF_AUTO_MIXED_PRECISION_GRAPH_REWRITE_BLACKLIST_ADD=MatMul && \
+export TF_XLA_FLAGS=--tf_xla_auto_jit=2 && \
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
 --api tf1 \
 --opt adam \
---lr 0.0001 \
---decay-step 1000 \
+--lr 1e-05 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
@@ -167,9 +163,9 @@ python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py trai
 --force-gpu-idxs 0 \
 --force-model-name your_model_name
 
+
 # FP32 + DFL API
 python3 /ParkCounty/home/SharedApp/DeepFaceLab_Linux/DeepFaceLabAMP/main.py train \
---lr 0.0001 \
 --training-data-src-dir=your_src_dir \
 --training-data-dst-dir=your_dst_dir \
 --model-dir your_model_dir \
