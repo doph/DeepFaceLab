@@ -36,7 +36,7 @@ class XSegModel(ModelBase):
     def on_initialize(self):
         device_config = nn.getCurrentDeviceConfig()
         self.model_data_format = "NCHW" if len(device_config.devices) != 0 and not self.is_debug() else "NHWC"
-        nn.initialize(data_format=self.model_data_format)
+        nn.initialize(data_format=self.model_data_format, use_amp=self.use_amp)
         tf = nn.tf
 
         device_config = nn.getCurrentDeviceConfig()

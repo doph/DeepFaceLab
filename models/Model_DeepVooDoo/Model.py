@@ -12,6 +12,7 @@ from facelib import FaceType
 from models import ModelBase
 from samplelib import *
 
+
 # Chuan: Some experiments for interAB layers
 # from PIL import Image
 # ref_src = Image.open("/home/ubuntu/Desktop/LIAE/02789.jpg")
@@ -19,7 +20,7 @@ from samplelib import *
 # ref_src = np.expand_dims(np.asarray( ref_src, dtype="float32" ) / 255.0, axis=0)
 # ref_src = np.transpose(ref_src, (0, 3, 1, 2))
 
-class SAEHDModel(ModelBase):
+class DeepVooDooModel(ModelBase):
 
     #override
     def on_initialize_options(self):
@@ -44,8 +45,11 @@ class SAEHDModel(ModelBase):
             self.options['models_opt_on_gpu'] = options_list['models_opt_on_gpu']
             self.options['archi'] = options_list['archi']
             self.options['ae_dims'] = options_list['ae_dims']
+            self.options['ae_scales'] = options_list['ae_scales']
             self.options['e_dims'] = options_list['e_dims']
+            self.options['e_scales'] = options_list['e_scales']
             self.options['d_dims'] = options_list['d_dims']
+            self.options['d_scales'] = options_list['d_scales']
             self.options['d_mask_dims'] = options_list['d_mask_dims']
             self.options['eyes_prio'] = options_list['eyes_prio']
             self.options['lr_dropout'] = options_list['lr_dropout']
@@ -66,7 +70,7 @@ class SAEHDModel(ModelBase):
                 self.syn_target_srcm_all = np.zeros((self.options['batch_size'], 1, self.options['resolution'], self.options['resolution']), dtype=np.float32)
                 self.syn_warped_dst = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
                 self.syn_target_dst = np.zeros((self.options['batch_size'], 3, self.options['resolution'], self.options['resolution']), dtype=np.float32)
-                self.syn_target_dstm_all = np.zeros((self.options['batch_size'], 1, self.options['resolution'], self.options['resolution']), dtype=np.float32)
+                self.syn_target_dstm_all = np.zeros((self.options['batch_size'], 1, self.options['resolution'], self.options['resolution']), dtype=np.float32)            
         else:
             self.options['use_syn'] = False
             lowest_vram = 2
@@ -91,8 +95,11 @@ class SAEHDModel(ModelBase):
             default_archi              = self.options['archi'] = archi
 
             default_ae_dims            = self.options['ae_dims']            = self.load_or_def_option('ae_dims', 256)
+            default_ae_scales          = self.options['ae_scales']          = self.load_or_def_option('ae_scales', 1)
             default_e_dims             = self.options['e_dims']             = self.load_or_def_option('e_dims', 64)
+            default_e_scales           = self.options['e_scales']           = self.load_or_def_option('e_scales', 4)
             default_d_dims             = self.options['d_dims']             = self.options.get('d_dims', None)
+            default_d_scales           = self.options['d_scales']           = self.load_or_def_option('d_scales', 4)
             default_d_mask_dims        = self.options['d_mask_dims']        = self.options.get('d_mask_dims', None)
             default_masked_training    = self.options['masked_training']    = self.load_or_def_option('masked_training', True)
             default_eyes_prio          = self.options['eyes_prio']          = self.load_or_def_option('eyes_prio', False)
@@ -120,11 +127,11 @@ class SAEHDModel(ModelBase):
                 self.ask_random_flip()
                 self.ask_batch_size(suggest_batch_size)
 
-        if self.is_first_run():
-            resolution = io.input_int("Resolution", default_resolution, add_info="64-640", help_message="More resolution requires more VRAM and time to train. Value will be adjusted to multiple of 16 and 32 for -d archi.")
-            resolution = np.clip ( (resolution // 16) * 16, min_res, max_res)
-            self.options['resolution'] = resolution
-            self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','bf','head'], help_message="Half / mid face / full face / whole face / big face / head. Half face has better resolution, but covers less area of cheeks. Mid face is 30% wider than half face. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
+            if self.is_first_run():
+                resolution = io.input_int("Resolution", default_resolution, add_info="64-640", help_message="More resolution requires more VRAM and time to train. Value will be adjusted to multiple of 16 and 32 for -d archi.")
+                resolution = np.clip ( (resolution // 16) * 16, min_res, max_res)
+                self.options['resolution'] = resolution
+                self.options['face_type'] = io.input_str ("Face type", default_face_type, ['h','mf','f','wf','head'], help_message="Half / mid face / full face / whole face / head. Half face has better resolution, but covers less area of cheeks. Mid face is 30% wider than half face. 'Whole face' covers full area of face include forehead. 'head' covers full head, but requires XSeg for src and dst faceset.").lower()
 
                 while True:
                     archi = io.input_str ("AE architecture", default_archi, help_message=\
@@ -168,19 +175,22 @@ class SAEHDModel(ModelBase):
 
             if self.is_first_run():
                 self.options['ae_dims'] = np.clip ( io.input_int("AutoEncoder dimensions", default_ae_dims, add_info="32-1024", help_message="All face information will packed to AE dims. If amount of AE dims are not enough, then for example closed eyes will not be recognized. More dims are better, but require more VRAM. You can fine-tune model size to fit your GPU." ), 32, 1024 )
+                self.options['ae_scales'] = np.clip ( io.input_int("AutoEncoder Scales", default_ae_scales, add_info="1-4", help_message="Number of Dense Layers in the inter blocks." ), 1, 4 )
 
                 e_dims = np.clip ( io.input_int("Encoder dimensions", default_e_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
                 self.options['e_dims'] = e_dims + e_dims % 2
+                self.options['e_scales'] = np.clip ( io.input_int("Encoder Scales", default_e_scales, add_info="1-8", help_message="Number of Layers in the Encoder." ), 1, 8 )
 
                 d_dims = np.clip ( io.input_int("Decoder dimensions", default_d_dims, add_info="16-256", help_message="More dims help to recognize more facial features and achieve sharper result, but require more VRAM. You can fine-tune model size to fit your GPU." ), 16, 256 )
                 self.options['d_dims'] = d_dims + d_dims % 2
-
+                self.options['d_scales'] = self.options['e_scales']
+                
                 d_mask_dims = np.clip ( io.input_int("Decoder mask dimensions", default_d_mask_dims, add_info="16-256", help_message="Typical mask dimensions = decoder dimensions / 3. If you manually cut out obstacles from the dst mask, you can increase this parameter to achieve better quality." ), 16, 256 )
                 self.options['d_mask_dims'] = d_mask_dims + d_mask_dims % 2
 
-        if self.is_first_run() or ask_override:
-            if self.options['face_type'] == 'wf' or self.options['face_type'] == 'bf' or self.options['face_type'] == 'head':
-                self.options['masked_training']  = io.input_bool ("Masked training", default_masked_training, help_message="This option is available only for 'whole_face' or 'head' type. Masked training clips training area to full_face mask or XSeg mask, thus network will train the faces properly.")
+            if self.is_first_run() or ask_override:
+                if self.options['face_type'] == 'wf' or self.options['face_type'] == 'head':
+                    self.options['masked_training']  = io.input_bool ("Masked training", default_masked_training, help_message="This option is available only for 'whole_face' or 'head' type. Masked training clips training area to full_face mask or XSeg mask, thus network will train the faces properly.")
 
                 self.options['eyes_prio'] = io.input_bool ("Eyes priority", default_eyes_prio, help_message='Helps to fix eye problems during training like "alien eyes" and wrong eyes direction ( especially on HD architectures ) by forcing the neural network to train eyes with higher priority. before/after https://i.imgur.com/YQHOuSR.jpg ')
                 self.options['uniform_yaw'] = io.input_bool ("Uniform yaw distribution of samples", default_uniform_yaw, help_message='Helps to fix blurry side faces due to small amount of them in the faceset.')
@@ -228,7 +238,6 @@ class SAEHDModel(ModelBase):
                           'mf' : FaceType.MID_FULL,
                           'f'  : FaceType.FULL,
                           'wf' : FaceType.WHOLE_FACE,
-                          'bf': FaceType.BIG_FACE,
                           'head' : FaceType.HEAD}[ self.options['face_type'] ]
 
         eyes_prio = self.options['eyes_prio']
@@ -248,16 +257,7 @@ class SAEHDModel(ModelBase):
         if self.pretrain_just_disabled:
             self.set_iter(0)
 
-        self.gan_power = gan_power = 0.0 if self.pretrain else self.options['gan_power']
-        random_warp = False if self.pretrain else self.options['random_warp']
-
-        if self.pretrain:
-            self.options_show_override['gan_power'] = 0.0
-            self.options_show_override['random_warp'] = False
-            self.options_show_override['lr_dropout'] = 'n'
-            self.options_show_override['face_style_power'] = 0.0
-            self.options_show_override['bg_style_power'] = 0.0
-            self.options_show_override['uniform_yaw'] = True
+        self.gan_power = gan_power = self.options['gan_power'] if not self.pretrain else 0.0
 
         masked_training = self.options['masked_training']
         ct_mode = self.options['ct_mode']
@@ -285,18 +285,18 @@ class SAEHDModel(ModelBase):
             self.target_dstm_all = tf.placeholder (nn.floatx, mask_shape)
 
         # Initializing model classes
-        model_archi = nn.DeepFakeArchi(resolution, opts=archi_opts)
+        model_archi = nn.DeepVooDooArchi(resolution, opts=archi_opts)
 
         with tf.device (models_opt_device):
             if 'df' in archi_type:
-                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, name='encoder')
+                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=self.options['e_scales'], name='encoder')
                 encoder_out_ch = self.encoder.compute_output_channels ( (nn.floatx, bgr_shape))
 
-                self.inter = model_archi.Inter (in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims, name='inter')
+                self.inter = model_archi.Inter (in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims, num_layers=self.options['ae_scales'], name='inter')
                 inter_out_ch = self.inter.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
 
-                self.decoder_src = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, name='decoder_src')
-                self.decoder_dst = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, name='decoder_dst')
+                self.decoder_src = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder_src')
+                self.decoder_dst = model_archi.Decoder(in_ch=inter_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder_dst')
 
                 self.model_filename_list += [ [self.encoder,     'encoder.npy'    ],
                                               [self.inter,       'inter.npy'      ],
@@ -309,16 +309,16 @@ class SAEHDModel(ModelBase):
                         self.model_filename_list += [ [self.code_discriminator, 'code_discriminator.npy'] ]
 
             elif 'liae' in archi_type:
-                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, name='encoder')
+                self.encoder = model_archi.Encoder(in_ch=input_ch, e_ch=e_dims, n_downscales=self.options['e_scales'], name='encoder')
                 encoder_out_ch = self.encoder.compute_output_channels ( (nn.floatx, bgr_shape))
 
-                self.inter_AB = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, name='inter_AB')
-                self.inter_B  = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, name='inter_B')
+                self.inter_AB = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=self.options['ae_scales'], name='inter_AB')
+                self.inter_B  = model_archi.Inter(in_ch=encoder_out_ch, ae_ch=ae_dims, ae_out_ch=ae_dims*2, num_layers=self.options['ae_scales'], name='inter_B')
 
                 inter_AB_out_ch = self.inter_AB.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
                 inter_B_out_ch = self.inter_B.compute_output_channels ( (nn.floatx, (None,encoder_out_ch)))
                 inters_out_ch = inter_AB_out_ch+inter_B_out_ch
-                self.decoder = model_archi.Decoder(in_ch=inters_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, name='decoder')
+                self.decoder = model_archi.Decoder(in_ch=inters_out_ch, d_ch=d_dims, d_mask_ch=d_mask_dims, n_upscales=self.options['d_scales'], name='decoder')
 
                 self.model_filename_list += [ [self.encoder,  'encoder.npy'],
                                               [self.inter_AB, 'inter_AB.npy'],
@@ -337,7 +337,7 @@ class SAEHDModel(ModelBase):
                         self.model_filename_list += [ [self.D_src_x2, 'D_src_x2.npy'] ]
                     else:
                         print('GAN type {} is invalid'.format(self.options['gan_type']))
-                        exit(0)
+                        exit(0)                        
 
                 # Initialize optimizers
                 lr=self.lr
@@ -364,12 +364,12 @@ class SAEHDModel(ModelBase):
                     if self.options['gan_type'] == 'unetpatch':
                         self.D_src_dst_opt.initialize_variables ( self.D_src.get_weights(), vars_on_cpu=optimizer_vars_on_cpu, lr_dropout_on_cpu=self.options['lr_dropout']=='cpu')#+self.D_src_x2.get_weights()
                         self.model_filename_list += [ (self.D_src_dst_opt, 'D_src_v2_opt.npy') ]
-                    elif self.options['gan_type'] == 'patch':
+                    elif self.options['gan_type'] == 'patch':                        
                         self.D_src_dst_opt.initialize_variables ( self.D_src.get_weights()+self.D_src_x2.get_weights(), vars_on_cpu=optimizer_vars_on_cpu, lr_dropout_on_cpu=self.options['lr_dropout']=='cpu')
                         self.model_filename_list += [ (self.D_src_dst_opt, 'D_src_dst_opt.npy') ]
                     else:
                         print('GAN type {} is invalid'.format(self.options['gan_type']))
-                        exit(0)
+                        exit(0)                                 
 
         if self.is_training:
             # Adjust batch size for multiple GPU
@@ -520,7 +520,7 @@ class SAEHDModel(ModelBase):
                             _gvs = [tf.where(tf.is_nan(g), tf.zeros_like(g), g) for g in _gvs]
                             _gvs = [tf.where(tf.math.is_inf(g), tf.zeros_like(g), g) for g in _gvs]
                             _gvs, _ = tf.clip_by_global_norm(_gvs, clipnorm)
-                            _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]
+                            _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]                            
                         gpu_D_code_loss_gvs.append([(g, v) for g, v in zip(_gvs, _vars)])
 
                     if gan_power != 0:
@@ -543,7 +543,7 @@ class SAEHDModel(ModelBase):
                             gpu_D_src_dst_loss = (DLoss(gpu_target_src_d_ones      , gpu_target_src_d) + \
                                                   DLoss(gpu_pred_src_src_d_zeros   , gpu_pred_src_src_d) ) * 0.5 + \
                                                  (DLoss(gpu_target_src_d2_ones      , gpu_target_src_d2) + \
-                                                  DLoss(gpu_pred_src_src_d2_zeros   , gpu_pred_src_src_d2) ) * 0.5
+                                                  DLoss(gpu_pred_src_src_d2_zeros   , gpu_pred_src_src_d2) ) * 0.5                            
                         elif self.options['gan_type'] == 'patch':
                             gpu_pred_src_src_d       = self.D_src(gpu_pred_src_src_masked_opt)
                             gpu_pred_src_src_d_ones  = tf.ones_like (gpu_pred_src_src_d)
@@ -561,10 +561,10 @@ class SAEHDModel(ModelBase):
                             gpu_D_src_dst_loss = (DLoss(gpu_target_src_d_ones      , gpu_target_src_d) + \
                                                   DLoss(gpu_pred_src_src_d_zeros   , gpu_pred_src_src_d) ) * 0.5 + \
                                                  (DLoss(gpu_target_src_x2_d_ones   , gpu_target_src_x2_d) + \
-                                                  DLoss(gpu_pred_src_src_x2_d_zeros, gpu_pred_src_src_x2_d) ) * 0.5
+                                                  DLoss(gpu_pred_src_src_x2_d_zeros, gpu_pred_src_src_x2_d) ) * 0.5                            
                         else:
                             print('GAN type {} is invalid'.format(self.options['gan_type']))
-                            exit(0)
+                            exit(0)     
 
 
                         # gpu_D_src_dst_loss_gvs += [ nn.gradients (gpu_D_src_dst_loss, self.D_src.get_weights() ) ]#+self.D_src_x2.get_weights()
@@ -573,8 +573,8 @@ class SAEHDModel(ModelBase):
                             _gvs = [tf.where(tf.is_nan(g), tf.zeros_like(g), g) for g in _gvs]
                             _gvs = [tf.where(tf.math.is_inf(g), tf.zeros_like(g), g) for g in _gvs]
                             _gvs, _ = tf.clip_by_global_norm(_gvs, clipnorm)
-                            _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]
-                        gpu_D_src_dst_loss_gvs.append([(g, v) for g, v in zip(_gvs, _vars)])
+                            _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]                            
+                        gpu_D_src_dst_loss_gvs.append([(g, v) for g, v in zip(_gvs, _vars)])                        
 
                         if self.options['gan_type'] == 'unetpatch':
                             gpu_G_loss += gan_power*(DLoss(gpu_pred_src_src_d_ones, gpu_pred_src_src_d)  + \
@@ -583,7 +583,7 @@ class SAEHDModel(ModelBase):
                             gan_G_loss = 0.5*gan_power*( DLoss(gpu_pred_src_src_d_ones, gpu_pred_src_src_d) + DLoss(gpu_pred_src_src_x2_d_ones, gpu_pred_src_src_x2_d))
                         else:
                             print('GAN type {} is invalid'.format(self.options['gan_type']))
-                            exit(0)
+                            exit(0)                        
 
                     # gpu_G_loss_gvs += [ nn.gradients ( gpu_G_loss, self.src_dst_trainable_weights ) ]
                     _gvs, _vars = zip(*nn.gradients ( gpu_G_loss, self.src_dst_trainable_weights))
@@ -591,9 +591,9 @@ class SAEHDModel(ModelBase):
                         _gvs = [tf.where(tf.is_nan(g), tf.zeros_like(g), g) for g in _gvs]
                         _gvs = [tf.where(tf.math.is_inf(g), tf.zeros_like(g), g) for g in _gvs]
                         _gvs, _ = tf.clip_by_global_norm(_gvs, clipnorm)
-                        _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]
+                        _gvs = [tf.clip_by_value(g, -1.0 * clipvalue, clipvalue) for g in _gvs]                            
                     gpu_G_loss_gvs.append([(g, v) for g, v in zip(_gvs, _vars)])
-
+                
 
             # Average losses and gradients, and create optimizer update ops
             with tf.device (models_opt_device):
@@ -666,13 +666,9 @@ class SAEHDModel(ModelBase):
                     gpu_dst_code = tf.concat([gpu_dst_inter_B_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
                     gpu_src_dst_code = tf.concat([gpu_dst_inter_AB_code,gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
 
-                    # # Chuan: Some experiments for interAB layers
+                    # Chuan: Some experiments for interAB layers
                     # gpu_src_code = self.encoder (ref_src)
                     # gpu_src_dst_code = tf.concat([self.inter_AB (gpu_src_code),gpu_dst_inter_AB_code], nn.conv2d_ch_axis)
-
-                    # # Chuan: Reconstruction test for dst images
-                    # gpu_pred_src_dst, gpu_pred_src_dstm = self.decoder(gpu_dst_code)
-                    # _, gpu_pred_dst_dstm = self.decoder(gpu_dst_code)
 
                     gpu_pred_src_dst, gpu_pred_src_dstm = self.decoder(gpu_src_dst_code)
                     _, gpu_pred_dst_dstm = self.decoder(gpu_dst_code)
@@ -718,7 +714,7 @@ class SAEHDModel(ModelBase):
             self.set_training_data_generators ([
                     SampleGeneratorFace(training_data_src_path, random_ct_samples_path=random_ct_samples_path, debug=self.is_debug(), batch_size=self.get_batch_size(),
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
-                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':random_warp, 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : SampleProcessor.FaceMaskType.FULL_FACE_EYES, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
@@ -727,7 +723,7 @@ class SAEHDModel(ModelBase):
 
                     SampleGeneratorFace(training_data_dst_path, debug=self.is_debug(), batch_size=self.get_batch_size(),
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
-                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':random_warp, 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : SampleProcessor.FaceMaskType.FULL_FACE_EYES, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
@@ -768,7 +764,7 @@ class SAEHDModel(ModelBase):
             target_srcm_all = self.syn_target_srcm_all
             warped_dst = self.syn_warped_dst
             target_dst = self.syn_target_dst
-            target_dstm_all = self.syn_target_dstm_all
+            target_dstm_all = self.syn_target_dstm_all         
         else:
             ( (warped_src, target_src, target_srcm_all), \
               (warped_dst, target_dst, target_dstm_all) ) = self.generate_next_samples()
@@ -824,7 +820,7 @@ class SAEHDModel(ModelBase):
             for i in range(n_samples):
                 ar = S[i], SS[i], D[i], DD[i], SD[i]
                 st.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD', np.concatenate (st, axis=0 )), ]
+            result += [ ('DeepVooDoo', np.concatenate (st, axis=0 )), ]
 
 
             st_m = []
@@ -834,7 +830,7 @@ class SAEHDModel(ModelBase):
                 ar = S[i]*target_srcm[i], SS[i], D[i]*target_dstm[i], DD[i]*DDM[i], SD[i]*SD_mask
                 st_m.append ( np.concatenate ( ar, axis=1) )
 
-            result += [ ('SAEHD masked', np.concatenate (st_m, axis=0 )), ]
+            result += [ ('DeepVooDoo masked', np.concatenate (st_m, axis=0 )), ]
         else:
             result = []
 
@@ -842,39 +838,39 @@ class SAEHDModel(ModelBase):
             for i in range(n_samples):
                 ar = S[i], SS[i]
                 st.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD src-src', np.concatenate (st, axis=0 )), ]
+            result += [ ('DeepVooDoo src-src', np.concatenate (st, axis=0 )), ]
 
             st = []
             for i in range(n_samples):
                 ar = D[i], DD[i]
                 st.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD dst-dst', np.concatenate (st, axis=0 )), ]
+            result += [ ('DeepVooDoo dst-dst', np.concatenate (st, axis=0 )), ]
 
             st = []
             for i in range(n_samples):
                 ar = D[i], SD[i]
                 st.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD pred', np.concatenate (st, axis=0 )), ]
+            result += [ ('DeepVooDoo pred', np.concatenate (st, axis=0 )), ]
 
 
             st_m = []
             for i in range(n_samples):
                 ar = S[i]*target_srcm[i], SS[i]
                 st_m.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD masked src-src', np.concatenate (st_m, axis=0 )), ]
+            result += [ ('DeepVooDoo masked src-src', np.concatenate (st_m, axis=0 )), ]
 
             st_m = []
             for i in range(n_samples):
                 ar = D[i]*target_dstm[i], DD[i]*DDM[i]
                 st_m.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD masked dst-dst', np.concatenate (st_m, axis=0 )), ]
+            result += [ ('DeepVooDoo masked dst-dst', np.concatenate (st_m, axis=0 )), ]
 
             st_m = []
             for i in range(n_samples):
                 SD_mask = DDM[i]*SDM[i] if self.face_type < FaceType.HEAD else SDM[i]
                 ar = D[i]*target_dstm[i], SD[i]*SD_mask
                 st_m.append ( np.concatenate ( ar, axis=1) )
-            result += [ ('SAEHD masked pred', np.concatenate (st_m, axis=0 )), ]
+            result += [ ('DeepVooDoo masked pred', np.concatenate (st_m, axis=0 )), ]
 
         return result
 
@@ -890,4 +886,4 @@ class SAEHDModel(ModelBase):
         import merger
         return self.predictor_func, (self.options['resolution'], self.options['resolution'], 3), merger.MergerConfigMasked(face_type=self.face_type, default_mode = 'overlay')
 
-Model = SAEHDModel
+Model = DeepVooDooModel

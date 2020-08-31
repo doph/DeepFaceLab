@@ -34,6 +34,12 @@ class ModelBase(object):
                        debug=False,
                        force_model_class_name=None,
                        silent_start=False,
+                       use_amp=None,
+                       opt=None,
+                       lr=None,
+                       decay_step=None,
+                       config_file=None,
+                       bs_per_gpu=None,
                        **kwargs):
         self.is_training = is_training
         self.saved_models_path = saved_models_path
@@ -43,7 +49,12 @@ class ModelBase(object):
         self.pretrained_model_path = pretrained_model_path
         self.no_preview = no_preview
         self.debug = debug
-
+        self.use_amp=use_amp
+        self.opt=opt
+        self.lr=lr
+        self.decay_step=decay_step
+        self.config_file=config_file
+        self.bs_per_gpu=bs_per_gpu
         self.model_class_name = model_class_name = Path(inspect.getmodule(self).__file__).parent.name.rsplit("_", 1)[1]
 
         if force_model_class_name is None:
@@ -159,7 +170,7 @@ class ModelBase(object):
             self.device_config = nn.DeviceConfig.GPUIndexes( force_gpu_idxs or nn.ask_choose_device_idxs(suggest_best_multi_gpu=True)) \
                                 if not cpu_only else nn.DeviceConfig.CPU()
 
-        nn.initialize(self.device_config)
+        nn.initialize(self.device_config, use_amp=self.use_amp)
 
         ####
         self.default_options_path = saved_models_path / f'{self.model_class_name}_default_options.dat'
@@ -216,7 +227,13 @@ class ModelBase(object):
 
                 if not self.autobackups_path.exists():
                     self.autobackups_path.mkdir(exist_ok=True)
-
+        
+        self.options['use_amp'] = self.use_amp
+        self.options['opt'] = self.opt
+        self.options['lr'] = self.lr
+        self.options['decay_step'] = self.decay_step  
+        if self.options['gan_power'] > 0:
+            self.options['gan_type'] = self.options['gan_type']  
         io.log_info( self.get_summary_text() )
 
     def update_sample_for_preview(self, choose_preview_history=False, force_new=False):
@@ -274,7 +291,8 @@ class ModelBase(object):
         return def_value
 
     def ask_override(self):
-        return self.is_training and self.iter != 0 and io.input_in_time ("Press enter in 2 seconds to override model settings.", 5 if io.is_colab() else 2 )
+        # return self.is_training and self.iter != 0 and io.input_in_time ("Press enter in 2 seconds to override model settings.", 5 if io.is_colab() else 2 )
+        return self.is_training and self.iter != 0 and io.input_bool("Override model settings", False, help_message="Niko Pueringer: when resuming training instead of the 2 second window to change your settings we have a Y/N option instead.")
 
     def ask_autobackup_hour(self, default_value=0):
         default_autobackup_hour = self.options['autobackup_hour'] = self.load_or_def_option('autobackup_hour', default_value)
